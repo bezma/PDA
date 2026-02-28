@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDA Database</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-index page-dashboard">
+  <div class="container">
+    <div class="card pda-db-card">
+      <div class="pda-db-hero">
+        <div class="pda-db-toolbar">
+          <div class="pda-db-actions">
+            <button class="mini" id="addPdaPositionBtn" type="button">+ Add PDA</button>
+          </div>
+          <div class="pda-db-search">
+            <span class="pda-db-search-icon" aria-hidden="true">
+              <img src="assets/icons/magnifyingglass.svg" alt="" />
+            </span>
+            <input
+              id="pdaSearchInput"
+              type="search"
+              aria-label="Search PDA positions"
+              placeholder="Vessel, terminal, operation, cargo, agent"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+          <div class="pda-db-sort" id="pdaSortModeToggle" role="group" aria-label="Sort PDA positions">
+            <span class="pda-db-sort-icon" aria-hidden="true">
+              <img src="assets/icons/arrow.up.and.down.text.horizontal.svg" alt="" />
+            </span>
+            <button type="button" class="pda-db-sort-btn active" data-sort-mode="created" aria-pressed="true">Created</button>
+            <button type="button" class="pda-db-sort-btn" data-sort-mode="edited" aria-pressed="false">Edited</button>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap pda-db-wrap">
+        <table class="pda-db-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Date</th>
+              <th>Vessel Name</th>
+              <th>Terminal</th>
+              <th>Operation</th>
+              <th>Quantity</th>
+              <th>Cargo</th>
+              <th>Agent</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="pdaDatabaseBody">
+            <tr>
+              <td colspan="9" class="pda-db-empty">No PDA positions saved yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="pdaDatabaseStatus" class="pda-db-status" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <script src="js/pda-database.js" defer></script>
+</body>
+</html>

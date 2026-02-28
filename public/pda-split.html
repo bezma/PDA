@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PRO-FORMA D/A</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-index page-split">
+  <div class="top-toolbar">
+    <button type="button" id="openPdaDatabaseTopBtn" class="top-home-btn">
+      <img src="assets/icons/house.svg" alt="" class="top-home-icon" />
+      <span>Home</span>
+    </button>
+    <div class="top-toolbar-right">
+      <button type="button" id="duplicatePdaTopBtn" class="top-home-btn top-duplicate-btn" aria-label="Duplicate PDA">
+        <img src="assets/icons/duplicate-page.svg" alt="" class="top-duplicate-icon" />
+        <span>Duplicate PDA</span>
+      </button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="logo-bar">
+      <textarea id="logoLeftNote" class="cell-input logo-left-note" rows="2" placeholder=""></textarea>
+      <div class="logo">
+        <img src="images/logo.png" alt="Capris Croatia" />
+      </div>
+      <div class="logo-bar-spacer" aria-hidden="true"></div>
+    </div>
+    <div class="hero">
+      <div class="hero-agent">
+        <label for="agentInput">Agent</label>
+        <input id="agentInput" class="cell-input" value="" placeholder="Agent name" />
+      </div>
+      <div class="proforma-pill">
+        <span class="proforma-pill-title">PRO-FORMA D/A</span>
+        <div class="title-note" data-print-hide-group>
+          <input id="titleNote" class="cell-input" data-print-hide-empty value="" placeholder="Ref. No." />
+        </div>
+      </div>
+      <div class="hero-right">
+        <div class="date">Split, <input id="dateInput" class="cell-input date-input" value="" /></div>
+      </div>
+    </div>
+
+    <div class="card-row">
+      <div class="card inline-form">
+        <div class="row">
+          <div>
+            <label>Vessel Name</label>
+            <input id="vesselNameIndex" placeholder="e.g., MV King Bezma" />
+          </div>
+          <div>
+            <label>Gross Tonnage <span class="print-hide-fragment">(GT)</span></label>
+            <input id="grossTonnage" placeholder="24048" />
+          </div>
+          <div>
+            <label>Length Overall</label>
+            <input id="lengthOverall" placeholder="182,86 m" />
+          </div>
+          <div>
+            <label>Bow Thruster <span class="print-hide-fragment">Fitted</span></label>
+            <input id="bowThrusterFitted" placeholder="YES" />
+          </div>
+        </div>
+      </div>
+
+      <div class="card inline-form">
+        <div class="row">
+          <div>
+            <label>Port</label>
+            <input id="portInput" placeholder="SPLIT" />
+          </div>
+          <div>
+            <label>Berth/Terminal</label>
+            <input id="berthTerminal" placeholder="INA SOLIN" />
+          </div>
+          <div>
+            <label>Operations</label>
+            <input id="operationsInput" placeholder="DISCHARGING" />
+          </div>
+          <div>
+            <label>Cargo</label>
+            <input id="cargoInput" placeholder="ULSD" />
+          </div>
+          <div>
+            <label>Quantity</label>
+            <input id="quantityInput" placeholder="15000" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card options-card">
+      <div class="section-title">Options</div>
+      <div class="density-toggle" role="group" aria-label="Density">
+        <button id="densityComfortable" type="button" class="active">Comfortable</button>
+        <button id="densityDense" type="button">Dense</button>
+      </div>
+      <div class="options-checkboxes">
+        <label class="sailing-toggle">
+          <input type="checkbox" id="globalImoTransport" />
+          Ship transporting (IMO Code Classes I-III)
+        </label>
+        <label class="sailing-toggle">
+          <input type="checkbox" id="roundPdaPrices" />
+          Enable PDA Price Rounding
+        </label>
+        <label class="sailing-toggle">
+          <input type="checkbox" id="toggleSailing" />
+          Include Sailing PDA
+        </label>
+        <label class="sailing-toggle">
+          <input type="checkbox" id="toggleLogoNote" />
+          Show note box
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="outlays-heading-row">
+        <div class="section-title">
+          Outlays & Charges Expressed In
+          <span class="section-currency">
+            <select id="outlaysCurrency">
+              <option value="EUR" selected>EUR</option>
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+          </select>
+        </span>
+        </div>
+      </div>
+      <div class="table-actions">
+        <button class="mini" type="button" onclick="addOutlayRow()">+ Add Row</button>
+      </div>
+      <div class="table-wrap">
+        <table class="outlays-table">
+          <colgroup>
+            <col class="outlays-col" />
+            <col class="pda-col" />
+            <col class="sailing-col" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Outlays</th>
+              <th>PDA (<span data-currency-symbol>€</span>)</th>
+              <th>Sailing PDA (<span data-currency-symbol>€</span>)</th>
+            </tr>
+          </thead>
+          <tbody id="outlaysBody">
+            <tr data-row="light-dues">
+              <td class="desc"><textarea class="cell-input text" rows="1">LIGHT DUES (EUR 0,579768 x vsl's GRT)</textarea></td>
+              <td><input class="cell-input money" placeholder="13.942,26" /></td>
+              <td><input class="cell-input money" placeholder="13.942,26" /></td>
+            </tr>
+            <tr data-row="port-dues">
+              <td class="desc"><textarea class="cell-input text" rows="1">PORT DUES (EUR 1 x cargo / MT)</textarea></td>
+              <td><input class="cell-input money" placeholder="15.000,00" /></td>
+              <td><input class="cell-input money" placeholder="15.031,00" /></td>
+            </tr>
+            <tr data-row="pilotage">
+              <td class="desc"><textarea class="cell-input text" rows="1">PILOTAGE</textarea></td>
+              <td><input class="cell-input money" placeholder="2.380,00" /></td>
+              <td><input class="cell-input money" placeholder="1.904,00" /></td>
+            </tr>
+            <tr data-row="pilot-boat">
+              <td class="desc"><textarea class="cell-input text" rows="1">PILOT BOAT - (free pratique, cargo sampling at anch.)</textarea></td>
+              <td><input class="cell-input money" placeholder="2.100,00" /></td>
+              <td><input class="cell-input money" placeholder="2.100,00" /></td>
+            </tr>
+            <tr data-row="mooring">
+              <td class="desc"><textarea class="cell-input text" rows="1">MOORING/UNMOORING</textarea></td>
+              <td><input class="cell-input money" placeholder="460,00" /></td>
+              <td><input class="cell-input money" placeholder="406,00" /></td>
+            </tr>
+            <tr data-row="towage">
+              <td class="desc">
+                <div class="row-item">
+                  <button class="row-handle" type="button" draggable="true" aria-label="Move row">
+                    <img src="assets/icons/grip-vertical.svg" alt="" draggable="false" />
+                  </button>
+                  <textarea class="cell-input text" rows="1">TOWAGE 3 in overtime wh + 3 out normal wh</textarea>
+                  <button class="row-remove" type="button" aria-label="Remove row">
+                    <img src="assets/icons/trash.svg" alt="" />
+                  </button>
+                </div>
+              </td>
+              <td>
+                <div class="money-edit">
+                  <button class="row-edit money-edit-btn" type="button" aria-label="Edit towage" onclick="openTugsCalculator()">
+                    <img src="assets/icons/square-pen.svg" alt="" />
+                  </button>
+                  <input class="cell-input money" placeholder="28.300,00" />
+                </div>
+              </td>
+              <td>
+                <div class="money-edit">
+                  <button class="row-edit money-edit-btn" type="button" aria-label="Edit towage sailing" onclick="openTugsCalculatorSailing()">
+                    <img src="assets/icons/square-pen.svg" alt="" />
+                  </button>
+                  <input class="cell-input money" placeholder="28.300,00" />
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">DANGEROUS CARGO PERMIT</textarea></td>
+              <td><input class="cell-input money" placeholder="150,00" /></td>
+              <td><input class="cell-input money" placeholder="150,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">ANTI-POLLUTION BELT</textarea></td>
+              <td><input class="cell-input money" placeholder="2.800,00" /></td>
+              <td><input class="cell-input money" placeholder="2.800,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">SANITARY CHARGES</textarea></td>
+              <td><input class="cell-input money" placeholder="250,00" /></td>
+              <td><input class="cell-input money" placeholder="250,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">GARBAGE REMOVAL (Cat. A, C up to 2 m3)</textarea></td>
+              <td><input class="cell-input money" placeholder="220,00" /></td>
+              <td><input class="cell-input money" placeholder="220,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">GARBAGE REMOVAL FOOD (Cat. B up to 100kg, min qty.)</textarea></td>
+              <td><input class="cell-input money" placeholder="100,00" /></td>
+              <td><input class="cell-input money" placeholder="100,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">ECS CARGO DECLARATION - IE547</textarea></td>
+              <td><input class="cell-input money" placeholder="100,00" /></td>
+              <td><input class="cell-input money" placeholder="100,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">ISSUING BL</textarea></td>
+              <td><input class="cell-input money" placeholder="100,00" /></td>
+              <td><input class="cell-input money" placeholder="100,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">CUSTOM CHARGES</textarea></td>
+              <td><input class="cell-input money" placeholder="400,00" /></td>
+              <td><input class="cell-input money" placeholder="400,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">POLICE PERMIT</textarea></td>
+              <td><input class="cell-input money" placeholder="100,00" /></td>
+              <td><input class="cell-input money" placeholder="100,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">SANITARY PRATIQUE</textarea></td>
+              <td><input class="cell-input money" placeholder="50,00" /></td>
+              <td><input class="cell-input money" placeholder="50,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">CAR SERVICE (transportation of authorities)</textarea></td>
+              <td><input class="cell-input money" placeholder="300,00" /></td>
+              <td><input class="cell-input money" placeholder="300,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">MEDIATION OF ISPS DOCUMENTATION</textarea></td>
+              <td><input class="cell-input money" placeholder="150,00" /></td>
+              <td><input class="cell-input money" placeholder="150,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">AGENCY FEE</textarea></td>
+              <td><input class="cell-input money" placeholder="4.000,00" /></td>
+              <td><input class="cell-input money" placeholder="4.000,00" /></td>
+            </tr>
+            <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">AGENCY OVERTIME</textarea></td>
+              <td><input class="cell-input money" placeholder="250,00" /></td>
+              <td><input class="cell-input money" placeholder="250,00" /></td>
+            </tr>
+            <tr data-row="bank-charges">
+              <td class="desc">
+                <div class="bank-charge">
+                  <textarea class="cell-input text" rows="1">BANK CHARGES</textarea>
+                  <div class="bank-rate">
+                    <span>(</span>
+                    <input id="bankRate" class="cell-input percent-input" value="0,8" />
+                    <span>%</span>
+                    <span>)</span>
+                  </div>
+                </div>
+              </td>
+              <td><input id="bankPda" class="cell-input money" value="542,66" readonly /></td>
+              <td><input id="bankSailing" class="cell-input money" value="538,67" readonly /></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>TOTAL</td>
+              <td><input id="totalPda" class="cell-input money total-input" value="68.374,92" readonly /></td>
+              <td><input id="totalSailing" class="cell-input money total-input" value="67.871,93" readonly /></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <template id="outlayRowTemplate">
+        <tr>
+          <td class="desc">
+            <div class="row-item">
+              <button class="row-handle" type="button" draggable="true" aria-label="Move row">
+                <img src="assets/icons/grip-vertical.svg" alt="" draggable="false" />
+              </button>
+              <textarea class="cell-input text" data-field="desc" rows="1"></textarea>
+              <button class="row-remove" type="button" aria-label="Remove row">
+                <img src="assets/icons/trash.svg" alt="" />
+              </button>
+            </div>
+          </td>
+          <td>
+            <div class="money-field">
+              <span class="currency-symbol" data-currency-symbol>€</span>
+              <input class="cell-input money" data-field="pda" value="" />
+            </div>
+          </td>
+          <td>
+            <div class="money-field">
+              <span class="currency-symbol" data-currency-symbol>€</span>
+              <input class="cell-input money" data-field="sailing" value="" />
+            </div>
+          </td>
+        </tr>
+      </template>
+    </div>
+
+    <div class="card">
+      <div class="footer-grid center-middle">
+        <div>
+          <div class="section-title">Our Full Style</div>
+          <p><strong>CAPRIS CROATIA d.o.o.</strong></p>
+          <p>Tolstojeva 24</p>
+          <p>21000 Split, Croatia</p>
+          <p>Tel. +385 21 572722</p>
+          <p>E-mail split@capris.hr</p>
+        </div>
+        <div>
+          <div class="section-title">Contacts</div>
+          <p>+ 385 91 3709147 &nbsp; Agent Alex Kvarantan</p>
+          <p>+ 385 99 2198020 &nbsp; Agent Ivan Bezmalinovic</p>
+          <p>+ 385 99 2102290 &nbsp; Agent Slavko Brzic</p>
+        </div>
+        <div>
+          <div class="section-title">Our Bank Details</div>
+          <p><strong>RAIFFEISENBANK AUSTRIA d.d. ZAGREB</strong></p>
+          <p>IBAN: HR 7724840081300146611</p>
+          <p>SWIFT: RZBHHR2X</p>
+          <p>In favour of Capris Croatia Rijeka</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="button" id="savePdaPositionBtn" class="action-btn-with-icon">
+        <img src="assets/icons/square.and.arrow.down.svg" alt="" class="action-btn-icon" />
+        <span>Save PDA to Database</span>
+      </button>
+      <button type="button" class="action-btn-with-icon" onclick="printFit()">
+        <img src="assets/icons/printer.svg" alt="" class="action-btn-icon" />
+        <span>Print / Save as PDF</span>
+      </button>
+      <button type="button" class="action-btn-with-icon" onclick="exportToExcel()">
+        <img src="assets/icons/square.and.arrow.up.svg" alt="" class="action-btn-icon" />
+        <span>Export to Excel</span>
+      </button>
+    </div>
+    <div id="pdaDatabaseStatus" class="pda-db-status" aria-live="polite"></div>
+  </div>
+  
+  <script src="js/script.js" defer></script>
+  <script src="js/pda-database.js" defer></script>
+</body>
+</html>

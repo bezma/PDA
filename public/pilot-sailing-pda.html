@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pilotage Sailing PDA</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-tugs page-pilotage-sailing">
+  <div class="container">
+    <div class="actions top-home-actions">
+      <button type="button" onclick="goHome()">Back to PDA</button>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Pilotage Sailing PDA</div>
+      <div class="row">
+        <div>
+          <label>Gross Tonnage (GT)</label>
+          <input id="pilotageGt" type="number" min="0" step="1" placeholder="Enter GT" />
+          <div class="note">GT is synced with index Gross Tonnage</div>
+        </div>
+        <div>
+          <label>Base Tariff (EUR / hour)</label>
+          <input id="pilotageTariff" type="number" readonly />
+          <div class="note">Tariff is auto-selected from GT</div>
+        </div>
+      </div>
+      <label class="checkbox mt-12">
+        <input type="checkbox" id="pilotageImoMaster" />
+        Ship transporting (IMO Code Classes I-III)
+      </label>
+    </div>
+
+    <div id="pilotageCards"></div>
+
+    <div class="actions">
+      <button type="button" onclick="addPilotageServiceCard()">+ Add Pilot service</button>
+    </div>
+
+    <div class="card" id="finalPilotageTotal"></div>
+  </div>
+
+  <script src="js/script.js" defer></script>
+</body>
+</html>

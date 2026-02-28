@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tug Service Calculator</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="images/logo.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="images/logo.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="images/logo.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-tugs">
+  <div class="container">
+    <div class="actions top-home-actions">
+      <button type="button" onclick="goHome()">Back to PDA</button>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Vessel Name</label>
+          <input id="vesselName" placeholder="e.g., MV King Bezma" />
+        </div>
+        <div>
+          <label>Gross Tonnage (GT)</label>
+          <input type="number" id="gt" min="0" placeholder="Enter GT" />
+        </div>
+        <div>
+          <label>Base Tariff (EUR / hour)</label>
+          <input type="number" id="tariff" readonly />
+          <div class="note">Tariff is auto-selected from GT</div>
+        </div>
+      </div>
+      <label class="checkbox imo-master-label mt-12">
+        <input type="checkbox" id="imoMaster" />
+        Towed ship transporting (IMO Code Classes I-III)
+      </label>
+      <label class="checkbox mt-8">
+        <input type="checkbox" id="linesMaster" />
+        Usage of tug lines
+      </label>
+    </div>
+
+    <div id="tugCards"></div>
+
+    <div class="actions">
+      <button onclick="addTug()">+ Add Tugboat</button>
+      <button onclick="duplicateLastTug()">Duplicate Card</button>
+      <button class="secondary" onclick="window.print()">Print / Save as PDF</button>
+    </div>
+
+    <div class="card" id="finalTotal"></div>
+  </div>
+
+  
+  <script src="js/script.js" defer></script>
+</body>
+</html>

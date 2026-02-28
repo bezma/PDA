@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Light Dues Sailing PDA</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-tugs page-tugs-sailing page-light-dues-sailing">
+  <div class="container">
+    <div class="actions top-home-actions">
+      <button type="button" onclick="goHome()">Back to PDA</button>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Light Dues Sailing PDA</div>
+      <div class="row light-dues-controls">
+        <div>
+          <label>Gross Tonnage (GT)</label>
+          <input id="lightDuesGt" type="number" min="0" step="1" placeholder="Enter GT" />
+        </div>
+        <div>
+          <label>Vessel Type</label>
+          <select id="lightDuesType">
+            <option value="cargo">Cargo Ships</option>
+            <option value="tanker">Tankers</option>
+            <option value="bulk">Bulk Carriers</option>
+            <option value="roroCargo">RO-RO Cargo ship</option>
+            <option value="container">Container ship</option>
+            <option value="passengerRoroFerry">Passenger ship and RO-RO ferry</option>
+            <option value="cruise">Cruise ship</option>
+            <option value="supply">Supply ship</option>
+            <option value="tugboatPusher">Tugboat or pusher</option>
+            <option value="fishing">Fishing ship</option>
+            <option value="technicalCraft">Technical craft</option>
+            <option value="nonSelfPropelled">Non-self propelled ship</option>
+            <option value="otherUnidentified">Other unidentified ships</option>
+          </select>
+        </div>
+        <div id="lightDuesTierWrap">
+          <label>Sub Option</label>
+          <select id="lightDuesTierBand">
+            <option value="le30000">if ≤ 30.000 GT</option>
+            <option value="30001to50000">if 30.001 - 50.000 GT</option>
+            <option value="gt50000">if &gt; 50.000 GT</option>
+          </select>
+        </div>
+      </div>
+      <label class="checkbox light-dues-valid-toggle">
+        <input id="lightDuesValid" type="checkbox" />
+        Valid light dues
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Light Dues Results (EUR)</div>
+      <div class="table-wrap light-dues-wrap">
+        <table class="light-dues-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Tariff</th>
+              <th>Amount (EUR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <label class="checkbox light-dues-period">
+                  <input id="lightDuesPeriod30" type="checkbox" checked />
+                  Up to 30 days
+                </label>
+              </td>
+              <td><input id="lightDuesTariff30" class="light-dues-readonly" readonly /></td>
+              <td><input id="lightDuesAmount30" class="light-dues-readonly" readonly /></td>
+            </tr>
+            <tr>
+              <td>
+                <label class="checkbox light-dues-period">
+                  <input id="lightDuesPeriod12" type="checkbox" />
+                  Up to 12 months
+                </label>
+              </td>
+              <td><input id="lightDuesTariff12" class="light-dues-readonly" readonly /></td>
+              <td><input id="lightDuesAmount12" class="light-dues-readonly" readonly /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/script.js" defer></script>
+</body>
+</html>

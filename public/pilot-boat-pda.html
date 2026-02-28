@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pilot Boat PDA</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-tugs page-pilot-boat-pda">
+  <div class="container">
+    <div class="actions top-home-actions">
+      <button type="button" onclick="goHome()">Back to PDA</button>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Pilot Boat PDA</div>
+      <div class="note">Each departure of the pilot boat to anchorage up to 2 NM from Port of Split breakwater: €360.00.</div>
+      <div class="note">Each NM beyond the 2 NM boundary (to and from vessel): €85.00 per NM.</div>
+      <div class="note">Waiting time beyond first 15 minutes: €120.00 for each additional 15 minutes.</div>
+    </div>
+
+    <div id="pilotBoatCards"></div>
+
+    <div class="actions">
+      <button type="button" onclick="addPilotBoatCard()">+ Add Pilot Boat</button>
+      <button type="button" onclick="duplicateLastPilotBoatCard()">Duplicate Card</button>
+    </div>
+
+    <div class="card" id="finalPilotBoatTotal"></div>
+  </div>
+
+  <script src="js/script.js" defer></script>
+</body>
+</html>

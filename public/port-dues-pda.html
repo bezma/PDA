@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Port Dues PDA</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-tugs page-port-dues-pda">
+  <div class="container">
+    <div class="actions top-home-actions">
+      <button type="button" onclick="goHome()">Back to PDA</button>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Port Dues PDA</div>
+      <div class="row">
+        <div>
+          <label>Cargo Quantity</label>
+          <input id="portDuesCargoQuantity" placeholder="Enter quantity" inputmode="decimal" />
+          <label>Cargo Type</label>
+          <select id="portDuesCargoType">
+            <option value="bulkCargo">Bulk cargo</option>
+            <option value="cementGravelSawdustBulkStoneSlagPetroleumCokeClinkerCoal">Cement, gravel, sawdust, bulk stone, slag, petroleum coke, clinker, coal</option>
+            <option value="grains">Grains (wheat, corn, soybeans, oilseeds in grain, etc.)</option>
+            <option value="sulphur">Sulphur</option>
+            <option value="scrapIron">Scrap iron</option>
+            <option value="copper">Copper</option>
+            <option value="liquidCargo">Liquid cargo</option>
+            <option value="generalCargo">General cargo</option>
+            <option value="baggedCement">Bagged cement</option>
+            <option value="explosiveCargo">Explosive cargo</option>
+            <option value="heavyCargo">Heavy cargo</option>
+            <option value="containerPerGt">Container - per gross tonnage (GT) of loaded/unloaded container</option>
+          </select>
+        </div>
+      </div>
+      <div class="row mt-12">
+        <div>
+          <label class="checkbox">
+            <input id="portDuesBunkeringToggle" type="checkbox" />
+            Ship bunkering - per ton of fuel and lubricants loaded
+          </label>
+          <label>Ship bunkering quantity</label>
+          <input id="portDuesBunkeringQuantity" placeholder="Enter quantity" inputmode="decimal" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Port Dues Results (EUR)</div>
+      <div class="table-wrap light-dues-wrap">
+        <table class="light-dues-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Tariff</th>
+              <th>Amount (EUR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Cargo dues</td>
+              <td><input id="portDuesCargoTariff" class="light-dues-readonly" readonly /></td>
+              <td><input id="portDuesCargoAmount" class="light-dues-readonly" readonly /></td>
+            </tr>
+            <tr>
+              <td>Ship bunkering</td>
+              <td><input id="portDuesBunkeringTariff" class="light-dues-readonly" readonly /></td>
+              <td><input id="portDuesBunkeringAmount" class="light-dues-readonly" readonly /></td>
+            </tr>
+            <tr>
+              <td><strong>Total</strong></td>
+              <td><input class="light-dues-readonly" value="-" readonly /></td>
+              <td><input id="portDuesTotalAmount" class="light-dues-readonly" readonly /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/script.js" defer></script>
+</body>
+</html>
