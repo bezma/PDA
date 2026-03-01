@@ -788,14 +788,18 @@
     });
   }
 
-  function setTodayDateIfPossible() {
-    const dateInput = document.getElementById('dateInput');
-    if (!dateInput) return;
+  function getTodayDateValue() {
     const now = new Date();
     const day = String(now.getDate());
     const month = String(now.getMonth() + 1);
     const year = String(now.getFullYear()).slice(-2);
-    dateInput.value = `${day}/${month}/${year}`;
+    return `${day}/${month}/${year}`;
+  }
+
+  function setTodayDateIfPossible() {
+    const dateInput = document.getElementById('dateInput');
+    if (!dateInput) return;
+    dateInput.value = getTodayDateValue();
   }
 
   function resetCalculatorStorageForNewDraft() {
@@ -1008,15 +1012,21 @@
     }
 
     const nowIso = new Date().toISOString();
+    const duplicatedDate = getTodayDateValue();
+    const duplicatedIndexState =
+      clonePlainObject(sourceRecord.indexState) ||
+      snapshotIndexState() ||
+      null;
+    if (duplicatedIndexState && duplicatedIndexState.fields && typeof duplicatedIndexState.fields === 'object') {
+      duplicatedIndexState.fields.dateInput = duplicatedDate;
+    }
     const duplicatedRecord = {
       ...sourceRecord,
       id: makeId(),
+      date: duplicatedDate,
       createdAt: nowIso,
       savedAt: nowIso,
-      indexState:
-        clonePlainObject(sourceRecord.indexState) ||
-        snapshotIndexState() ||
-        null,
+      indexState: duplicatedIndexState,
       calculatorState:
         normalizeCalculatorState(clonePlainObject(sourceRecord.calculatorState)) ||
         snapshotCalculatorState() ||
@@ -1025,6 +1035,7 @@
 
     try {
       await upsertPosition(duplicatedRecord);
+      writeField('dateInput', duplicatedDate);
       setCurrentPositionId(duplicatedRecord.id);
       activePositionRecord = clonePlainObject(duplicatedRecord) || { ...duplicatedRecord };
       lastSavedRecordSignature = getRecordSignature(duplicatedRecord);

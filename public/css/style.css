@@ -25,6 +25,14 @@ body {margin: 0;
         linear-gradient(180deg, #f8fafc, var(--bg-1));
       padding: 28px 16px 48px;}
 
+img[src*="assets/icons/"]:not([src*="grip-vertical.svg"]){
+      pointer-events: none;
+      -webkit-user-drag: none;
+      user-drag: none;
+      -webkit-user-select: none;
+      user-select: none;
+}
+
 /* Index page styles */
 *{ box-sizing: border-box; }
 
@@ -1050,6 +1058,8 @@ body {margin: 0;
       overflow: visible;
       -webkit-tap-highlight-color: transparent;
       --icon-press-ring-color: currentColor;
+      --icon-fill-fadeout-delay: 110ms;
+      --icon-zoom-fadeout-delay: 90ms;
     }
 
     body.page-index .row-edit,
@@ -1084,14 +1094,46 @@ body {margin: 0;
       position: absolute;
       top: 50%;
       left: 50%;
-      width: calc(100% - 6px);
-      height: calc(100% - 6px);
+      width: calc(100% - 8px);
+      height: calc(100% - 8px);
       border-radius: 999px;
-      border: 2px solid var(--icon-press-ring-color);
-      transform: translate(-50%, -50%) scale(0.74);
+      background: var(--icon-press-ring-color);
+      transform: translate(-50%, -50%) scale(0.15);
       opacity: 0;
       pointer-events: none;
+      z-index: 0;
       transition: opacity 220ms ease, transform 220ms ease;
+    }
+
+    body.page-index .row-handle:not(:active)::after,
+    body.page-index .row-edit:not(:active)::after,
+    body.page-index .row-remove:not(:active)::after,
+    body.page-index .pda-db-edit-btn:not(:active)::after,
+    body.page-index .pda-db-delete-btn:not(:active)::after,
+    body.page-tugs .icon-btn:not(:active)::after{
+      transition-delay: var(--icon-fill-fadeout-delay), var(--icon-fill-fadeout-delay);
+    }
+
+    body.page-index .row-handle img,
+    body.page-index .row-edit img,
+    body.page-index .row-remove img,
+    body.page-index .pda-db-edit-btn img,
+    body.page-index .pda-db-delete-btn img,
+    body.page-tugs .icon-btn img{
+      position: relative;
+      z-index: 1;
+      transform: scale(1);
+      transform-origin: center;
+      transition: filter 180ms ease, transform 180ms ease;
+    }
+
+    body.page-index .row-handle:not(:active) img,
+    body.page-index .row-edit:not(:active) img,
+    body.page-index .row-remove:not(:active) img,
+    body.page-index .pda-db-edit-btn:not(:active) img,
+    body.page-index .pda-db-delete-btn:not(:active) img,
+    body.page-tugs .icon-btn:not(:active) img{
+      transition-delay: var(--icon-zoom-fadeout-delay), var(--icon-zoom-fadeout-delay);
     }
 
     body.page-index .row-handle:active::after,
@@ -1100,8 +1142,20 @@ body {margin: 0;
     body.page-index .pda-db-edit-btn:active::after,
     body.page-index .pda-db-delete-btn:active::after,
     body.page-tugs .icon-btn:active::after{
-      opacity: 0.95;
-      transform: translate(-50%, -50%) scale(1);
+      transition-delay: 0ms, 0ms;
+      opacity: 0.9;
+      transform: translate(-50%, -50%) scale(1.5);
+    }
+
+    body.page-index .row-handle:active img,
+    body.page-index .row-edit:active img,
+    body.page-index .row-remove:active img,
+    body.page-index .pda-db-edit-btn:active img,
+    body.page-index .pda-db-delete-btn:active img,
+    body.page-tugs .icon-btn:active img{
+      transition-delay: 0ms, 0ms;
+      filter: brightness(0) invert(1);
+      transform: scale(1.5);
     }
 
     .app-select-dialog-backdrop{

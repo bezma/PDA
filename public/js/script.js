@@ -3485,7 +3485,7 @@ function addPilotBoatCard(initialState = {}) {
         </button>
         <h3 class="pilot-boat-title">Pilot boat service</h3>
         <button class="icon-btn" onclick="duplicatePilotBoatCard(${id})" aria-label="Duplicate pilot boat card">
-          <img src="assets/icons/duplicate_48x48.png" alt="Duplicate" />
+          <img src="assets/icons/copy-plus.svg" alt="Duplicate" />
         </button>
       </div>
 
