@@ -5,7 +5,10 @@
   "description": "Capris PDA shared database server",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "check": "node --check server.js && node --check public/js/script.js && node --check public/js/pda-database.js",
+    "migrate": "node scripts/migrate.js up",
+    "migrate:status": "node scripts/migrate.js status",
+    "start": "npm run migrate && node server.js",
     "dev": "node --watch server.js"
   },
   "engines": {

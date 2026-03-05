@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('node:path');
-const { Pool } = require('pg');
+const { createPool } = require('./lib/db-config');
+const { applyMigrations } = require('./lib/migrations');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -132,27 +133,7 @@ function mapRowToRecord(row) {
   };
 }
 
-function buildPgConfig() {
-  const hasDatabaseUrl = String(process.env.DATABASE_URL || '').trim() !== '';
-  const config = hasDatabaseUrl
-    ? { connectionString: process.env.DATABASE_URL }
-    : {
-        host: process.env.PGHOST || '127.0.0.1',
-        port: Number(process.env.PGPORT || 5432),
-        user: process.env.PGUSER || 'postgres',
-        password: process.env.PGPASSWORD || '',
-        database: process.env.PGDATABASE || 'pda_capris'
-      };
-
-  const sslEnabled = String(process.env.PGSSL || '').toLowerCase() === 'true';
-  if (sslEnabled) {
-    config.ssl = { rejectUnauthorized: false };
-  }
-
-  return config;
-}
-
-const pool = new Pool(buildPgConfig());
+const pool = createPool();
 
 const UPSERT_POSITION_SQL = `
   INSERT INTO pda_positions (
@@ -176,31 +157,6 @@ const UPSERT_POSITION_SQL = `
     index_state = EXCLUDED.index_state,
     calculator_state = EXCLUDED.calculator_state
 `;
-
-async function ensureSchema() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS pda_positions (
-      id TEXT PRIMARY KEY,
-      date TEXT NOT NULL DEFAULT '',
-      vessel_name TEXT NOT NULL DEFAULT '',
-      berth_terminal TEXT NOT NULL DEFAULT '',
-      operation TEXT NOT NULL DEFAULT '',
-      quantity TEXT NOT NULL DEFAULT '',
-      cargo TEXT NOT NULL DEFAULT '',
-      agent TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMPTZ NOT NULL,
-      saved_at TIMESTAMPTZ NOT NULL,
-      index_state JSONB,
-      calculator_state JSONB
-    );
-
-    CREATE INDEX IF NOT EXISTS pda_positions_created_at_idx
-      ON pda_positions (created_at DESC);
-
-    CREATE INDEX IF NOT EXISTS pda_positions_saved_at_idx
-      ON pda_positions (saved_at DESC);
-  `);
-}
 
 async function getPositionById(id, db = pool) {
   const queryResult = await db.query(
@@ -350,7 +306,7 @@ app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 async function startServer() {
   try {
     await pool.query('SELECT 1');
-    await ensureSchema();
+    await applyMigrations(pool, { verbose: true });
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to initialize PostgreSQL storage.', error);

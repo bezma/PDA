@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pda_capris
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pda_capris"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: pda_capris
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Static checks
+        run: npm run check
+
+      - name: Run migrations
+        run: npm run migrate
+
+      - name: Verify schema objects
+        run: |
+          node -e "const {Client}=require('pg');(async()=>{const c=new Client();await c.connect();const q=async(name)=>{const r=await c.query('SELECT to_regclass($1) AS n',[name]);return r.rows[0].n;};const m=await q('public.schema_migrations');const p=await q('public.pda_positions');if(!m||!p){throw new Error('Missing required tables after migration.')}await c.end();console.log('Schema OK');})().catch((e)=>{console.error(e.message||e);process.exit(1);});"
