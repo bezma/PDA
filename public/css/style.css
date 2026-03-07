@@ -1740,11 +1740,27 @@ img[src*="assets/icons/"]:not([src*="grip-vertical.svg"]){
         color: #fff;
       }
       body.page-index tfoot td{
-        font-size: 10px;
-        padding-top: 5px;
-        padding-bottom: 5px;
+        font-size: 15px;
+        padding-top: 6px;
+        padding-bottom: 6px;
         background: var(--table-blue);
         color: #fff;
+      }
+      body.page-index .outlays-table tfoot .money-field{
+        justify-content: flex-end;
+        gap: 4px;
+      }
+      body.page-index .outlays-table tfoot .total-input{
+        font-size: 15px !important;
+        font-weight: 800;
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
+      }
+      body.page-index .outlays-table tfoot .money-field .currency-symbol{
+        opacity: 1 !important;
+        color: #fff !important;
+        font-size: 15px;
+        font-weight: 800;
       }
       body.page-index table{ min-width: 0; }
       body.page-index .outlays-table{

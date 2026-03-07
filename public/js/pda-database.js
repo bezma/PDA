@@ -229,7 +229,7 @@
   }
 
   function getSearchQuery() {
-    const source = searchInput ? searchInput.value : storageGet(DB_STORAGE.searchQuery);
+    const source = searchInput ? searchInput.value : '';
     return normalizeSearchText(source);
   }
 
@@ -237,11 +237,6 @@
     const sanitized = String(query == null ? '' : query)
       .replace(/\s+/g, ' ')
       .trim();
-    if (sanitized) {
-      storageSet(DB_STORAGE.searchQuery, sanitized);
-    } else {
-      storageRemove(DB_STORAGE.searchQuery);
-    }
     if (searchInput && searchInput.value !== sanitized) {
       searchInput.value = sanitized;
     }
@@ -1164,14 +1159,14 @@
   function initDashboard() {
     if (!tableBody) return;
     bindDashboardIconAnimations();
+    storageRemove(DB_STORAGE.searchQuery);
 
     const addBtn = document.getElementById('addPdaPositionBtn');
     if (addBtn) addBtn.addEventListener('click', openNewDraftInForm);
 
     searchInput = document.getElementById('pdaSearchInput');
     if (searchInput) {
-      const initialQuery = setSearchQuery(storageGet(DB_STORAGE.searchQuery));
-      if (searchInput.value !== initialQuery) searchInput.value = initialQuery;
+      setSearchQuery('');
       searchInput.addEventListener('input', () => {
         setSearchQuery(searchInput.value);
         void renderPositionsTable();
