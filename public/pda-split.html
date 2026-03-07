@@ -91,29 +91,43 @@
       </div>
     </div>
 
-    <div class="card options-card">
-      <div class="section-title">Options</div>
-      <div class="density-toggle" role="group" aria-label="Density">
-        <button id="densityComfortable" type="button" class="active">Comfortable</button>
-        <button id="densityDense" type="button">Dense</button>
+    <div class="card options-card is-collapsed" id="optionsCard">
+      <div class="options-card-header">
+        <div class="section-title">Options</div>
+        <div class="density-toggle options-toggle-wrap" role="group" aria-label="Options visibility">
+          <button type="button" id="optionsShowLessBtn" class="options-toggle-btn active" aria-controls="optionsBody" aria-pressed="true">Less</button>
+          <button type="button" id="optionsShowMoreBtn" class="options-toggle-btn" aria-controls="optionsBody" aria-pressed="false">More</button>
+        </div>
       </div>
-      <div class="options-checkboxes">
-        <label class="sailing-toggle">
+      <div class="options-always-visible">
+        <label class="sailing-toggle global-imo-toggle">
           <input type="checkbox" id="globalImoTransport" />
           Ship transporting (IMO Code Classes I-III)
         </label>
-        <label class="sailing-toggle">
-          <input type="checkbox" id="roundPdaPrices" />
-          Enable PDA Price Rounding
-        </label>
-        <label class="sailing-toggle">
-          <input type="checkbox" id="toggleSailing" />
-          Include Sailing PDA
-        </label>
-        <label class="sailing-toggle">
-          <input type="checkbox" id="toggleLogoNote" />
-          Show note box
-        </label>
+      </div>
+      <div class="options-body" id="optionsBody" hidden>
+        <div class="density-toggle" role="group" aria-label="Density">
+          <button id="densityComfortable" type="button" class="active">Comfortable</button>
+          <button id="densityDense" type="button">Dense</button>
+        </div>
+        <div class="options-checkboxes">
+          <label class="sailing-toggle">
+            <input type="checkbox" id="togglePda" checked />
+            Show PDA
+          </label>
+          <label class="sailing-toggle">
+            <input type="checkbox" id="toggleSailing" />
+            Show Sailing PDA
+          </label>
+          <label class="sailing-toggle">
+            <input type="checkbox" id="toggleLogoNote" />
+            Show note box
+          </label>
+          <label class="sailing-toggle">
+            <input type="checkbox" id="roundPdaPrices" />
+            Enable PDA Price Rounding
+          </label>
+        </div>
       </div>
     </div>
 
@@ -131,7 +145,10 @@
         </div>
       </div>
       <div class="table-actions">
-        <button class="mini" type="button" onclick="addOutlayRow()">+ Add Row</button>
+        <button class="mini" type="button" onclick="addOutlayRow()">
+          <img src="assets/icons/add.row.plus.svg" alt="" class="mini-btn-icon" />
+          <span>Add Row</span>
+        </button>
       </div>
       <div class="table-wrap">
         <table class="outlays-table">
@@ -253,6 +270,11 @@
               <td><input class="cell-input money" placeholder="50,00" /></td>
             </tr>
             <tr>
+              <td class="desc"><textarea class="cell-input text" rows="1">P.T.T. / COMMUNICATIONS EXPENSES</textarea></td>
+              <td><input class="cell-input money" placeholder="150,00" /></td>
+              <td><input class="cell-input money" placeholder="150,00" /></td>
+            </tr>
+            <tr>
               <td class="desc"><textarea class="cell-input text" rows="1">CAR SERVICE (transportation of authorities)</textarea></td>
               <td><input class="cell-input money" placeholder="300,00" /></td>
               <td><input class="cell-input money" placeholder="300,00" /></td>
@@ -334,7 +356,7 @@
           <p>Tolstojeva 24</p>
           <p>21000 Split, Croatia</p>
           <p>Tel. +385 21 572722</p>
-          <p>E-mail split@capris.hr</p>
+          <p>Email split@capris.hr</p>
         </div>
         <div>
           <div class="section-title">Contacts</div>

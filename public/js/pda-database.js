@@ -63,11 +63,15 @@
   let sortModeToggle = null;
   let sortModeButtons = [];
   let searchInput = null;
+  let dashboardIconAnimationBound = false;
   let autosaveTimer = null;
   let autosaveInFlight = false;
   let autosaveQueued = false;
   let lastSavedRecordSignature = '';
   let autosaveListenersBound = false;
+  const DASHBOARD_ICON_ANIMATION_CLASS = 'icon-animating';
+  const DASHBOARD_ICON_ANIMATION_MS = 176;
+  const dashboardIconAnimationTimers = new WeakMap();
 
   const SORT_MODES = {
     created: 'created',
@@ -259,6 +263,49 @@
     if (!haystack) return false;
     const terms = query.split(' ').filter(Boolean);
     return terms.every((term) => haystack.includes(term));
+  }
+
+  function isDashboardAnimatedIconButton(button) {
+    if (!button || !(button instanceof HTMLElement)) return false;
+    return button.matches('button.pda-db-edit-btn, button.pda-db-delete-btn');
+  }
+
+  function triggerDashboardIconAnimation(button) {
+    if (!button || !isDashboardAnimatedIconButton(button) || button.disabled) return;
+    const existingTimer = dashboardIconAnimationTimers.get(button);
+    if (existingTimer) window.clearTimeout(existingTimer);
+
+    button.classList.remove(DASHBOARD_ICON_ANIMATION_CLASS);
+    void button.offsetWidth;
+    button.classList.add(DASHBOARD_ICON_ANIMATION_CLASS);
+
+    const nextTimer = window.setTimeout(() => {
+      button.classList.remove(DASHBOARD_ICON_ANIMATION_CLASS);
+      dashboardIconAnimationTimers.delete(button);
+    }, DASHBOARD_ICON_ANIMATION_MS);
+    dashboardIconAnimationTimers.set(button, nextTimer);
+  }
+
+  function bindDashboardIconAnimations() {
+    if (dashboardIconAnimationBound) return;
+    dashboardIconAnimationBound = true;
+
+    document.addEventListener('pointerdown', (event) => {
+      if (!event.isTrusted || event.button !== 0) return;
+      const target = event.target;
+      const button = target && target.closest ? target.closest('button') : null;
+      if (!button) return;
+      triggerDashboardIconAnimation(button);
+    }, true);
+
+    document.addEventListener('keydown', (event) => {
+      if (!event.isTrusted) return;
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const target = event.target;
+      const button = target && target.closest ? target.closest('button') : null;
+      if (!button) return;
+      triggerDashboardIconAnimation(button);
+    }, true);
   }
 
   function normalizePositions(positions) {
@@ -500,6 +547,10 @@
   function writeField(id, value) {
     const field = document.getElementById(id);
     if (!field) return;
+    if (field.type === 'checkbox') {
+      field.checked = Boolean(value);
+      return;
+    }
     field.value = value == null ? '' : String(value);
   }
 
@@ -855,7 +906,15 @@
     writeField('cargoInput', '');
     writeField('quantityInput', '');
     writeField('agentInput', '');
+    writeField('globalImoTransport', false);
     setTodayDateIfPossible();
+
+    if (typeof setGlobalImoTransportState === 'function') {
+      setGlobalImoTransportState(false);
+    }
+    if (typeof updateImoToggleLabelColor === 'function') {
+      updateImoToggleLabelColor(document.getElementById('globalImoTransport'));
+    }
 
     resetEditablePdaCellsToZero();
 
@@ -1104,6 +1163,7 @@
 
   function initDashboard() {
     if (!tableBody) return;
+    bindDashboardIconAnimations();
 
     const addBtn = document.getElementById('addPdaPositionBtn');
     if (addBtn) addBtn.addEventListener('click', openNewDraftInForm);

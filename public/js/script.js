@@ -63,6 +63,7 @@ const INDEX_FIELD_IDS = [
   'cargoInput',
   'quantityInput',
   'agentInput',
+  'togglePda',
   'toggleSailing',
   'toggleLogoNote',
   'globalImoTransport',
@@ -282,6 +283,9 @@ const PILOT_BOAT_BASE_CHARGE = 360;
 const PILOT_BOAT_EXTRA_NM_RATE = 85;
 const PILOT_BOAT_WAITING_15MIN_RATE = 120;
 const BUNKER_ROW_DESCRIPTION = 'BUNKER (EUR 0,30 x loaded bunker / MT )';
+const ICON_PRESS_ANIMATION_CLASS = 'icon-animating';
+const ICON_PRESS_ANIMATION_MS = 176;
+const iconPressAnimationTimers = new WeakMap();
 
 function safeStorageGet(key) {
   try {
@@ -321,6 +325,74 @@ function getGlobalImoTransportState() {
 
 function setGlobalImoTransportState(checked) {
   safeStorageSet(STORAGE_KEYS.globalImoTransport, checked ? '1' : '0');
+}
+
+function isAnimatedIconButton(button) {
+  if (!button || !(button instanceof HTMLElement)) return false;
+  return button.matches('.row-edit, .row-remove, .pda-db-edit-btn, .pda-db-delete-btn, .icon-btn');
+}
+
+function triggerIconPressAnimation(button) {
+  if (!button || !isAnimatedIconButton(button) || button.disabled) return;
+  const existingTimer = iconPressAnimationTimers.get(button);
+  if (existingTimer) window.clearTimeout(existingTimer);
+
+  button.classList.remove(ICON_PRESS_ANIMATION_CLASS);
+  // Force reflow so repeated presses retrigger animation reliably.
+  void button.offsetWidth;
+  button.classList.add(ICON_PRESS_ANIMATION_CLASS);
+
+  const nextTimer = window.setTimeout(() => {
+    button.classList.remove(ICON_PRESS_ANIMATION_CLASS);
+    iconPressAnimationTimers.delete(button);
+  }, ICON_PRESS_ANIMATION_MS);
+  iconPressAnimationTimers.set(button, nextTimer);
+}
+
+function clearTransientIconAnimationState(root = document) {
+  if (!root || !root.querySelectorAll) return;
+  root
+    .querySelectorAll(`button.${ICON_PRESS_ANIMATION_CLASS}`)
+    .forEach((button) => button.classList.remove(ICON_PRESS_ANIMATION_CLASS));
+}
+
+function getPersistableOutlaysHtml(outlaysBody) {
+  if (!outlaysBody) return '';
+  const clone = outlaysBody.cloneNode(true);
+  clearTransientIconAnimationState(clone);
+  clone.querySelectorAll('tr.dragging').forEach((row) => row.classList.remove('dragging'));
+  return clone.innerHTML;
+}
+
+function initIconClickAnimationCompletion() {
+  document.addEventListener('pointerdown', (event) => {
+    if (!event.isTrusted) return;
+    if (event.button !== 0) return;
+    const target = event.target;
+    const button = target && target.closest ? target.closest('button') : null;
+    if (!button) return;
+    triggerIconPressAnimation(button);
+  }, true);
+
+  document.addEventListener('keydown', (event) => {
+    if (!event.isTrusted) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target;
+    const button = target && target.closest ? target.closest('button') : null;
+    if (!button) return;
+    triggerIconPressAnimation(button);
+  }, true);
+}
+
+function updateImoToggleLabelColor(input) {
+  if (!input) return;
+  const toggleLabel = input.closest('label');
+  if (!toggleLabel) return;
+  const supportsCheckedColor =
+    toggleLabel.classList.contains('global-imo-toggle') ||
+    toggleLabel.classList.contains('imo-master-label');
+  if (!supportsCheckedColor) return;
+  toggleLabel.classList.toggle('is-checked', Boolean(input.checked));
 }
 
 function readFieldValue(field) {
@@ -364,7 +436,7 @@ function saveIndexState() {
 
   const state = {
     fields,
-    outlaysHtml: outlaysBody.innerHTML,
+    outlaysHtml: getPersistableOutlaysHtml(outlaysBody),
     outlaysValues,
     density: getDensityMode()
   };
@@ -388,6 +460,7 @@ function restoreIndexState() {
 
   if (typeof state.outlaysHtml === 'string' && state.outlaysHtml.trim()) {
     outlaysBody.innerHTML = migrateLegacyIconMarkup(state.outlaysHtml);
+    clearTransientIconAnimationState(outlaysBody);
   }
 
   if (Array.isArray(state.outlaysValues)) {
@@ -2213,6 +2286,15 @@ function setSailingVisible(visible) {
   });
 }
 
+function setPdaVisible(visible) {
+  if (!outlaysTable) return;
+  outlaysTable.classList.toggle('hide-pda', !visible);
+  requestAnimationFrame(() => {
+    void outlaysTable.offsetWidth;
+    requestAnimationFrame(refreshOutlayLayout);
+  });
+}
+
 function setLogoNoteVisible(visible) {
   const logoNote = document.getElementById('logoLeftNote');
   if (!logoNote) return;
@@ -2272,6 +2354,7 @@ function exportToExcel() {
   const dateValue = document.getElementById('dateInput')?.value || '';
   const noteValue = document.getElementById('titleNote')?.value || '';
   const currencyValue = outlaysCurrency ? outlaysCurrency.value : '';
+  const includePda = outlaysTable ? !outlaysTable.classList.contains('hide-pda') : true;
   const includeSailing = outlaysTable ? !outlaysTable.classList.contains('hide-sailing') : true;
 
   const headerRows = [];
@@ -2306,23 +2389,33 @@ function exportToExcel() {
   const totalPda = document.getElementById('totalPda')?.value || '';
   const totalSailing = document.getElementById('totalSailing')?.value || '';
 
-  const columnCount = includeSailing ? 3 : 2;
-  const outlayHeaderCells = includeSailing
-    ? `<th>Outlays</th><th>PDA (${escapeHtml(currencyValue)})</th><th>Sailing PDA (${escapeHtml(currencyValue)})</th>`
-    : `<th>Outlays</th><th>PDA (${escapeHtml(currencyValue)})</th>`;
+  const outlayColumns = [{ key: 'desc', label: 'Outlays' }];
+  if (includePda) outlayColumns.push({ key: 'pda', label: `PDA (${currencyValue})` });
+  if (includeSailing) outlayColumns.push({ key: 'sailing', label: `Sailing PDA (${currencyValue})` });
+
+  const columnCount = outlayColumns.length;
+  const outlayHeaderCells = outlayColumns
+    .map((column) => `<th>${escapeHtml(column.label)}</th>`)
+    .join('');
 
   const outlayBodyRows = outlayRows
     .map((row) => {
-      const cells = includeSailing
-        ? `<td>${escapeHtml(row[0])}</td><td>${escapeHtml(row[1])}</td><td>${escapeHtml(row[2])}</td>`
-        : `<td>${escapeHtml(row[0])}</td><td>${escapeHtml(row[1])}</td>`;
+      const rowMap = { desc: row[0], pda: row[1], sailing: row[2] };
+      const cells = outlayColumns
+        .map((column) => `<td>${escapeHtml(rowMap[column.key])}</td>`)
+        .join('');
       return `<tr>${cells}</tr>`;
     })
     .join('');
 
-  const totalCells = includeSailing
-    ? `<td>Total (${escapeHtml(currencyValue)})</td><td>${escapeHtml(totalPda)}</td><td>${escapeHtml(totalSailing)}</td>`
-    : `<td>Total (${escapeHtml(currencyValue)})</td><td>${escapeHtml(totalPda)}</td>`;
+  const totalMap = {
+    desc: `Total (${currencyValue})`,
+    pda: totalPda,
+    sailing: totalSailing
+  };
+  const totalCells = outlayColumns
+    .map((column) => `<td>${escapeHtml(totalMap[column.key])}</td>`)
+    .join('');
 
   const headerTable = `
     <table>
@@ -2636,11 +2729,38 @@ function initIndex() {
   });
 
   outlaysTable = document.querySelector('.outlays-table');
+  const togglePda = document.getElementById('togglePda');
   toggleSailing = document.getElementById('toggleSailing');
   const toggleLogoNote = document.getElementById('toggleLogoNote');
   outlaysCurrency = document.getElementById('outlaysCurrency');
   roundPdaPrices = document.getElementById('roundPdaPrices');
   const globalImoTransport = document.getElementById('globalImoTransport');
+  const optionsCard = document.getElementById('optionsCard');
+  const optionsBody = document.getElementById('optionsBody');
+  const optionsShowLessBtn = document.getElementById('optionsShowLessBtn');
+  const optionsShowMoreBtn = document.getElementById('optionsShowMoreBtn');
+  const setOptionsExpanded = (expanded) => {
+    if (!optionsCard || !optionsBody || !optionsShowLessBtn || !optionsShowMoreBtn) return;
+    optionsCard.classList.toggle('is-expanded', Boolean(expanded));
+    optionsCard.classList.toggle('is-collapsed', !expanded);
+    optionsBody.hidden = !expanded;
+    optionsShowLessBtn.classList.toggle('active', !expanded);
+    optionsShowMoreBtn.classList.toggle('active', Boolean(expanded));
+    optionsShowLessBtn.setAttribute('aria-pressed', expanded ? 'false' : 'true');
+    optionsShowMoreBtn.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+  };
+  if (optionsCard && optionsBody && optionsShowLessBtn && optionsShowMoreBtn) {
+    setOptionsExpanded(false);
+    optionsShowLessBtn.addEventListener('click', () => setOptionsExpanded(false));
+    optionsShowMoreBtn.addEventListener('click', () => setOptionsExpanded(true));
+  }
+  if (togglePda) {
+    togglePda.addEventListener('change', () => {
+      setPdaVisible(togglePda.checked);
+      saveIndexState();
+    });
+    setPdaVisible(togglePda.checked);
+  }
   if (toggleSailing) {
     toggleSailing.addEventListener('change', () => {
       setSailingVisible(toggleSailing.checked);
@@ -2673,8 +2793,10 @@ function initIndex() {
       setGlobalImoTransportState(Boolean(globalImoTransport.checked));
       updateTowageFromStorage();
       updatePilotageFromStorage();
+      updateImoToggleLabelColor(globalImoTransport);
       saveIndexState();
     });
+    updateImoToggleLabelColor(globalImoTransport);
   }
   wrapMoneyFields();
   decorateMoneyEditCells();
@@ -2804,6 +2926,7 @@ function initIndex() {
       if (globalImoState !== null && globalImoTransport.checked !== globalImoState) {
         globalImoTransport.checked = globalImoState;
       }
+      updateImoToggleLabelColor(globalImoTransport);
     }
   });
   window.addEventListener('storage', () => {
@@ -2821,6 +2944,7 @@ function initIndex() {
       if (globalImoState !== null && globalImoTransport.checked !== globalImoState) {
         globalImoTransport.checked = globalImoState;
       }
+      updateImoToggleLabelColor(globalImoTransport);
     }
   });
 
@@ -3882,6 +4006,7 @@ function syncPilotageImoMaster() {
   if (total === 0) {
     pilotageImoMaster.checked = false;
     pilotageImoMaster.indeterminate = false;
+    updateImoToggleLabelColor(pilotageImoMaster);
     return;
   }
 
@@ -3893,15 +4018,18 @@ function syncPilotageImoMaster() {
   if (checkedCount === 0) {
     pilotageImoMaster.checked = false;
     pilotageImoMaster.indeterminate = false;
+    updateImoToggleLabelColor(pilotageImoMaster);
     return;
   }
   if (checkedCount === total) {
     pilotageImoMaster.checked = true;
     pilotageImoMaster.indeterminate = false;
+    updateImoToggleLabelColor(pilotageImoMaster);
     return;
   }
   pilotageImoMaster.checked = false;
   pilotageImoMaster.indeterminate = true;
+  updateImoToggleLabelColor(pilotageImoMaster);
 }
 
 function syncPilotageImoWithGlobalState(forceInitialize = false) {
@@ -3919,6 +4047,7 @@ function syncPilotageImoWithGlobalState(forceInitialize = false) {
   pilotageImoMaster.indeterminate = false;
   applyPilotageImoMaster();
   syncPilotageImoMaster();
+  updateImoToggleLabelColor(pilotageImoMaster);
 }
 
 function setPilotageExtrasState(id, defaultToChecked = false) {
@@ -4198,8 +4327,10 @@ function initPilotage() {
     pilotageImoMaster.addEventListener('change', () => {
       applyPilotageImoMaster();
       setGlobalImoTransportState(Boolean(pilotageImoMaster.checked));
+      updateImoToggleLabelColor(pilotageImoMaster);
       calculatePilotage();
     });
+    updateImoToggleLabelColor(pilotageImoMaster);
   }
 
   gtInput.addEventListener('input', calculatePilotage);
@@ -5041,6 +5172,7 @@ function syncImoMaster() {
   }
   if (total === 0) {
     imoMaster.indeterminate = false;
+    updateImoToggleLabelColor(imoMaster);
     return;
   }
   if (checked === 0) {
@@ -5053,6 +5185,7 @@ function syncImoMaster() {
     imoMaster.checked = false;
     imoMaster.indeterminate = true;
   }
+  updateImoToggleLabelColor(imoMaster);
 }
 
 function syncTugImoWithGlobalState(forceInitialize = false) {
@@ -5062,6 +5195,7 @@ function syncTugImoWithGlobalState(forceInitialize = false) {
     if (forceInitialize && !imoMaster.indeterminate) {
       setGlobalImoTransportState(Boolean(imoMaster.checked));
     }
+    updateImoToggleLabelColor(imoMaster);
     return;
   }
 
@@ -5070,6 +5204,7 @@ function syncTugImoWithGlobalState(forceInitialize = false) {
   imoMaster.indeterminate = false;
   applyImoMaster();
   syncImoMaster();
+  updateImoToggleLabelColor(imoMaster);
 }
 
 function syncLinesMaster() {
@@ -5298,8 +5433,10 @@ function initTugs() {
     imoMaster.addEventListener('change', () => {
       applyImoMaster();
       setGlobalImoTransportState(Boolean(imoMaster.checked));
+      updateImoToggleLabelColor(imoMaster);
       calculate();
     });
+    updateImoToggleLabelColor(imoMaster);
   }
 
   if (linesMaster) {
@@ -5354,7 +5491,13 @@ window.addEventListener('beforeprint', () => {
   updatePrintHidden();
 });
 
+window.addEventListener('pageshow', () => {
+  clearTransientIconAnimationState(document);
+});
+
 window.addEventListener('DOMContentLoaded', () => {
+  initIconClickAnimationCompletion();
+  clearTransientIconAnimationState(document);
   initIndex();
   initLightDues();
   initPortDues();

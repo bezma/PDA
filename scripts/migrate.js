@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const { createPool } = require('../lib/db-config');
 const { applyMigrations, getMigrationStatus } = require('../lib/migrations');
 

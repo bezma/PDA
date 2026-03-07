@@ -6,15 +6,16 @@
   "main": "server.js",
   "scripts": {
     "check": "node --check server.js && node --check public/js/script.js && node --check public/js/pda-database.js",
-    "migrate": "node scripts/migrate.js up",
+    "migrate": "node -r dotenv/config scripts/migrate.js up",
     "migrate:status": "node scripts/migrate.js status",
-    "start": "npm run migrate && node server.js",
+    "start": "npm run migrate && node -r dotenv/config server.js",
     "dev": "node --watch server.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "dotenv": "^17.3.1",
     "express": "^4.21.2",
     "pg": "^8.16.3"
   }
