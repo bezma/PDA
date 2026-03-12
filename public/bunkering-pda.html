@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mooring Sailing PDA</title>
+  <title>Bunkering PDA</title>
   <link rel="icon" type="image/svg+xml" href="images/favicon-pda.svg" />
   <link rel="apple-touch-icon" href="images/favicon-pda.svg" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
-<body class="page-tugs page-tugs-sailing page-mooring-sailing">
+<body class="page-tugs page-bunkering-pda">
   <div class="container">
     <div class="actions top-home-actions">
       <button type="button" onclick="goHome()">Back to PDA</button>
@@ -18,28 +18,32 @@
     </div>
 
     <div class="card">
-      <div class="section-title">Mooring Sailing PDA</div>
+      <div class="section-title">Bunkering PDA</div>
       <div class="row">
         <div>
-          <label>Gross Tonnage (GT)</label>
-          <input id="mooringGt" type="number" min="0" step="1" placeholder="Enter GT" />
-          <div class="note">GT is synced with index Gross Tonnage</div>
-        </div>
-        <div>
-          <label>Base Tariff (EUR)</label>
-          <input id="mooringTariff" type="number" readonly />
-          <div class="note">Tariff is auto-selected from GT</div>
+          <label>Ship bunkering quantity</label>
+          <input id="bunkeringQuantity" placeholder="Enter quantity" inputmode="decimal" />
         </div>
       </div>
     </div>
 
-    <div id="mooringCards"></div>
-
-    <div class="actions">
-      <button type="button" onclick="addMooringArrivalCard()">+ Add Mooring / Unmooring / Shifting</button>
+    <div class="card">
+      <div class="section-title">Bunkering Results (EUR)</div>
+      <div class="table-wrap light-dues-wrap">
+        <table class="light-dues-table">
+          <tbody>
+            <tr>
+              <td>Tarif</td>
+              <td><input id="bunkeringTariff" class="light-dues-readonly" value="0,30" readonly /></td>
+            </tr>
+            <tr>
+              <td>Anount (EUR)</td>
+              <td><input id="bunkeringAmount" class="light-dues-readonly" readonly /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-
-    <div class="card" id="finalMooringTotal"></div>
   </div>
 
   <script src="js/script.js" defer></script>

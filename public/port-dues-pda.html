@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Port Dues PDA</title>
+  <link rel="icon" type="image/svg+xml" href="images/favicon-pda.svg" />
+  <link rel="apple-touch-icon" href="images/favicon-pda.svg" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body class="page-tugs page-port-dues-pda">
@@ -38,48 +40,25 @@
           </select>
         </div>
       </div>
-      <div class="row mt-12">
-        <div>
-          <label class="checkbox">
-            <input id="portDuesBunkeringToggle" type="checkbox" />
-            Ship bunkering - per ton of fuel and lubricants loaded
-          </label>
-          <label>Ship bunkering quantity</label>
-          <input id="portDuesBunkeringQuantity" placeholder="Enter quantity" inputmode="decimal" />
-        </div>
-      </div>
     </div>
 
     <div class="card">
       <div class="section-title">Port Dues Results (EUR)</div>
       <div class="table-wrap light-dues-wrap">
         <table class="light-dues-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Tariff</th>
-              <th>Amount (EUR)</th>
-            </tr>
-          </thead>
           <tbody>
             <tr>
-              <td>Cargo dues</td>
+              <td>Tarif</td>
               <td><input id="portDuesCargoTariff" class="light-dues-readonly" readonly /></td>
-              <td><input id="portDuesCargoAmount" class="light-dues-readonly" readonly /></td>
             </tr>
             <tr>
-              <td>Ship bunkering</td>
-              <td><input id="portDuesBunkeringTariff" class="light-dues-readonly" readonly /></td>
-              <td><input id="portDuesBunkeringAmount" class="light-dues-readonly" readonly /></td>
-            </tr>
-            <tr>
-              <td><strong>Total</strong></td>
-              <td><input class="light-dues-readonly" value="-" readonly /></td>
+              <td>Anount (EUR)</td>
               <td><input id="portDuesTotalAmount" class="light-dues-readonly" readonly /></td>
             </tr>
           </tbody>
         </table>
       </div>
+      <input id="portDuesCargoAmount" type="hidden" />
     </div>
   </div>
 

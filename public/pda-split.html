@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PRO-FORMA D/A</title>
+  <link rel="icon" type="image/svg+xml" href="images/favicon-pda.svg" />
+  <link rel="apple-touch-icon" href="images/favicon-pda.svg" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body class="page-index page-split">
@@ -93,10 +95,11 @@
 
     <div class="card options-card is-collapsed" id="optionsCard">
       <div class="options-card-header">
-        <div class="section-title">Options</div>
         <div class="density-toggle options-toggle-wrap" role="group" aria-label="Options visibility">
-          <button type="button" id="optionsShowLessBtn" class="options-toggle-btn active" aria-controls="optionsBody" aria-pressed="true">Less</button>
-          <button type="button" id="optionsShowMoreBtn" class="options-toggle-btn" aria-controls="optionsBody" aria-pressed="false">More</button>
+          <button type="button" id="optionsToggleBtn" class="options-toggle-btn" aria-controls="optionsBody" aria-expanded="false">
+            <span class="options-toggle-label">More</span>
+            <span class="options-toggle-chevron" aria-hidden="true"></span>
+          </button>
         </div>
       </div>
       <div class="options-always-visible">
@@ -174,6 +177,16 @@
               <td class="desc"><textarea class="cell-input text" rows="1">PORT DUES (EUR 1 x cargo / MT)</textarea></td>
               <td><input class="cell-input money" placeholder="15.000,00" /></td>
               <td><input class="cell-input money" placeholder="15.031,00" /></td>
+            </tr>
+            <tr data-row="bunkering">
+              <td class="desc"><textarea class="cell-input text" rows="1">BUNKER (EUR 0,30 x loaded bunker / MT )</textarea></td>
+              <td><input class="cell-input money" placeholder="0,00" /></td>
+              <td><input class="cell-input money" placeholder="0,00" /></td>
+            </tr>
+            <tr data-row="berthage-quayage">
+              <td class="desc"><textarea class="cell-input text" rows="1">BERTHAGE/QUAYAGE/ANCHORAGE</textarea></td>
+              <td><input class="cell-input money" placeholder="0,00" /></td>
+              <td><input class="cell-input money" placeholder="0,00" /></td>
             </tr>
             <tr data-row="pilotage">
               <td class="desc"><textarea class="cell-input text" rows="1">PILOTAGE</textarea></td>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bunkering Sailing PDA</title>
+  <link rel="icon" type="image/svg+xml" href="images/favicon-pda.svg" />
+  <link rel="apple-touch-icon" href="images/favicon-pda.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-tugs page-tugs-sailing page-bunkering-sailing">
+  <div class="container">
+    <div class="actions top-home-actions">
+      <button type="button" onclick="goHome()">Back to PDA</button>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Bunkering Sailing PDA</div>
+      <div class="row">
+        <div>
+          <label>Ship bunkering quantity</label>
+          <input id="bunkeringQuantity" placeholder="Enter quantity" inputmode="decimal" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Bunkering Results (EUR)</div>
+      <div class="table-wrap light-dues-wrap">
+        <table class="light-dues-table">
+          <tbody>
+            <tr>
+              <td>Tarif</td>
+              <td><input id="bunkeringTariff" class="light-dues-readonly" value="0,30" readonly /></td>
+            </tr>
+            <tr>
+              <td>Anount (EUR)</td>
+              <td><input id="bunkeringAmount" class="light-dues-readonly" readonly /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/script.js" defer></script>
+</body>
+</html>

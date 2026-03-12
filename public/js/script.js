@@ -5,6 +5,8 @@ let toggleSailing = null;
 let densityComfortable = null;
 let densityDense = null;
 let printRestoreDensity = null;
+let defaultOutlaysHtml = null;
+let mobilePrintPageStyle = null;
 let outlaysCurrency = null;
 let roundPdaPrices = null;
 const STORAGE_KEYS = {
@@ -34,6 +36,12 @@ const STORAGE_KEYS = {
   portDuesCargoAmountSailing: 'pda_port_dues_cargo_amount_sailing',
   portDuesBunkeringAmountPda: 'pda_port_dues_bunkering_amount_pda',
   portDuesBunkeringAmountSailing: 'pda_port_dues_bunkering_amount_sailing',
+  bunkeringState: 'pda_bunkering_state',
+  bunkeringStateSailing: 'pda_bunkering_state_sailing',
+  berthageState: 'pda_berthage_state',
+  berthageStateSailing: 'pda_berthage_state_sailing',
+  berthageAmountPda: 'pda_berthage_amount_pda',
+  berthageAmountSailing: 'pda_berthage_amount_sailing',
   mooringState: 'pda_mooring_state',
   mooringStateSailing: 'pda_mooring_state_sailing',
   mooringAmountPda: 'pda_mooring_amount_pda',
@@ -241,6 +249,7 @@ const LIGHT_DUES_TIER_OPTIONS = {
     { value: 'gt80000', label: 'if > 80.000 GT', min: 80001 }
   ]
 };
+const LIGHT_DUES_DEFAULT_TYPE = 'cargo';
 
 const PORT_DUES_CARGO_TYPES = {
   bulkCargo: { rate: 0.6, label: '0,60' },
@@ -256,6 +265,7 @@ const PORT_DUES_CARGO_TYPES = {
   heavyCargo: { rate: 2, label: '2,00' },
   containerPerGt: { rate: 0.84, label: '0,84' }
 };
+const PORT_DUES_DEFAULT_CARGO_TYPE = 'bulkCargo';
 
 const MOORING_GT_TARIFFS = [
   { min: 0, max: 250, amount: 8.4 },
@@ -283,9 +293,64 @@ const PILOT_BOAT_BASE_CHARGE = 360;
 const PILOT_BOAT_EXTRA_NM_RATE = 85;
 const PILOT_BOAT_WAITING_15MIN_RATE = 120;
 const BUNKER_ROW_DESCRIPTION = 'BUNKER (EUR 0,30 x loaded bunker / MT )';
+const BERTHAGE_QUAYAGE_ROW_DESCRIPTION = 'BERTHAGE/QUAYAGE/ANCHORAGE';
+const BERTHAGE_TARIFF_RATE = 2;
+const ANCHORAGE_TARIFF_RATE = 1;
 const ICON_PRESS_ANIMATION_CLASS = 'icon-animating';
 const ICON_PRESS_ANIMATION_MS = 176;
 const iconPressAnimationTimers = new WeakMap();
+const NEW_DRAFT_CALC_KEYS = [
+  STORAGE_KEYS.towageTotal,
+  STORAGE_KEYS.towageArrivalCount,
+  STORAGE_KEYS.towageDepartureCount,
+  STORAGE_KEYS.tugsState,
+  STORAGE_KEYS.towageTotalSailing,
+  STORAGE_KEYS.towageArrivalCountSailing,
+  STORAGE_KEYS.towageDepartureCountSailing,
+  STORAGE_KEYS.tugsStateSailing,
+  STORAGE_KEYS.lightDuesState,
+  STORAGE_KEYS.lightDuesStateSailing,
+  STORAGE_KEYS.lightDuesAmountPda,
+  STORAGE_KEYS.lightDuesTariffPda,
+  STORAGE_KEYS.lightDuesAmountSailing,
+  STORAGE_KEYS.lightDuesTariffSailing,
+  STORAGE_KEYS.portDuesState,
+  STORAGE_KEYS.portDuesStateSailing,
+  STORAGE_KEYS.portDuesAmountPda,
+  STORAGE_KEYS.portDuesAmountSailing,
+  STORAGE_KEYS.portDuesCargoAmountPda,
+  STORAGE_KEYS.portDuesCargoAmountSailing,
+  STORAGE_KEYS.portDuesBunkeringAmountPda,
+  STORAGE_KEYS.portDuesBunkeringAmountSailing,
+  STORAGE_KEYS.bunkeringState,
+  STORAGE_KEYS.bunkeringStateSailing,
+  STORAGE_KEYS.berthageState,
+  STORAGE_KEYS.berthageStateSailing,
+  STORAGE_KEYS.berthageAmountPda,
+  STORAGE_KEYS.berthageAmountSailing,
+  STORAGE_KEYS.mooringState,
+  STORAGE_KEYS.mooringStateSailing,
+  STORAGE_KEYS.mooringAmountPda,
+  STORAGE_KEYS.mooringAmountSailing,
+  STORAGE_KEYS.pilotageState,
+  STORAGE_KEYS.pilotageStateSailing,
+  STORAGE_KEYS.pilotageAmountPda,
+  STORAGE_KEYS.pilotageAmountSailing,
+  STORAGE_KEYS.pilotBoatState,
+  STORAGE_KEYS.pilotBoatStateSailing,
+  STORAGE_KEYS.pilotBoatAmountPda,
+  STORAGE_KEYS.pilotBoatAmountSailing,
+  STORAGE_KEYS.globalImoTransport
+];
+
+function isNewDraftMode() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('new') === '1';
+}
+
+function clearCalculatorStorageForNewDraft() {
+  NEW_DRAFT_CALC_KEYS.forEach((key) => safeStorageRemove(key));
+}
 
 function safeStorageGet(key) {
   try {
@@ -323,8 +388,49 @@ function getGlobalImoTransportState() {
   return parseStoredBoolean(safeStorageGet(STORAGE_KEYS.globalImoTransport));
 }
 
+function setLightDuesTypeState(type) {
+  if (!type) return;
+  const keys = [STORAGE_KEYS.lightDuesState, STORAGE_KEYS.lightDuesStateSailing];
+  keys.forEach((key) => {
+    const raw = safeStorageGet(key);
+    let state = {};
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') state = parsed;
+      } catch (error) {
+        state = {};
+      }
+    }
+    state.type = type;
+    safeStorageSet(key, JSON.stringify(state));
+  });
+}
+
+function setPortDuesCargoTypeState(cargoType) {
+  if (!cargoType) return;
+  const keys = [STORAGE_KEYS.portDuesState, STORAGE_KEYS.portDuesStateSailing];
+  keys.forEach((key) => {
+    const raw = safeStorageGet(key);
+    let state = {};
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') state = parsed;
+      } catch (error) {
+        state = {};
+      }
+    }
+    state.cargoType = cargoType;
+    safeStorageSet(key, JSON.stringify(state));
+  });
+}
+
 function setGlobalImoTransportState(checked) {
   safeStorageSet(STORAGE_KEYS.globalImoTransport, checked ? '1' : '0');
+  const targetType = checked ? 'liquidCargo' : PORT_DUES_DEFAULT_CARGO_TYPE;
+  setPortDuesCargoTypeState(targetType);
+  setLightDuesTypeState(checked ? 'tanker' : LIGHT_DUES_DEFAULT_TYPE);
 }
 
 function isAnimatedIconButton(button) {
@@ -362,6 +468,40 @@ function getPersistableOutlaysHtml(outlaysBody) {
   clearTransientIconAnimationState(clone);
   clone.querySelectorAll('tr.dragging').forEach((row) => row.classList.remove('dragging'));
   return clone.innerHTML;
+}
+
+function getDefaultOutlaysHtml() {
+  if (defaultOutlaysHtml) return defaultOutlaysHtml;
+  const outlaysBody = document.getElementById('outlaysBody');
+  if (!outlaysBody) return '';
+  defaultOutlaysHtml = outlaysBody.innerHTML;
+  return defaultOutlaysHtml;
+}
+
+function ensureBaselineOutlayRows(outlaysBody) {
+  if (!outlaysBody) return;
+  const baselineHtml = getDefaultOutlaysHtml();
+  if (!baselineHtml) return;
+
+  const existingKeys = new Set();
+  outlaysBody.querySelectorAll('tr').forEach((row) => {
+    const key = String(row.dataset.row || '').trim();
+    if (key) existingKeys.add(key);
+  });
+
+  const baseline = document.createElement('tbody');
+  baseline.innerHTML = baselineHtml;
+  baseline.querySelectorAll('tr').forEach((row) => {
+    const key = String(row.dataset.row || '').trim();
+    if (!key || key === 'bank-charges') return;
+    if (existingKeys.has(key)) return;
+    const clone = row.cloneNode(true);
+    clone.hidden = true;
+    clone.dataset.outlayHidden = '1';
+    const bankRow = outlaysBody.querySelector('tr[data-row=\"bank-charges\"]');
+    if (bankRow) outlaysBody.insertBefore(clone, bankRow);
+    else outlaysBody.appendChild(clone);
+  });
 }
 
 function initIconClickAnimationCompletion() {
@@ -477,6 +617,8 @@ function restoreIndexState() {
     });
   }
 
+  ensureBaselineOutlayRows(outlaysBody);
+
   if (state.fields && typeof state.fields === 'object') {
     INDEX_FIELD_IDS.forEach((id) => {
       const field = document.getElementById(id);
@@ -537,6 +679,12 @@ function saveTugsState() {
     gt: document.getElementById('gt')?.value || '',
     imoMaster: document.getElementById('imoMaster')?.checked || false,
     linesMaster: document.getElementById('linesMaster')?.checked || false,
+    arrivalOtMaster: document.getElementById('arrivalOtMaster')?.checked || false,
+    arrivalOtSunday: document.getElementById('arrivalOtSunday')?.checked || false,
+    departureOtMaster: document.getElementById('departureOtMaster')?.checked || false,
+    departureOtSunday: document.getElementById('departureOtSunday')?.checked || false,
+    discountEnabled: document.getElementById('discountEnabled')?.checked || false,
+    discountPercent: document.getElementById('discountPercent')?.value || '',
     tugs
   };
 
@@ -574,6 +722,7 @@ function restoreTugsState() {
     if (kw) kw.checked = Boolean(tug.kw);
     if (voyOt) voyOt.value = tug.voy_ot || '0';
     if (assistOt) assistOt.value = tug.assist_ot || '0';
+    if (kw && kw.checked && voyage) voyage.value = '1.5';
   });
 
   const vesselName = document.getElementById('vesselName');
@@ -589,6 +738,30 @@ function restoreTugsState() {
   const linesMasterInput = document.getElementById('linesMaster');
   if (linesMasterInput) {
     linesMasterInput.checked = Boolean(state.linesMaster);
+  }
+  const arrivalOtMasterInput = document.getElementById('arrivalOtMaster');
+  if (arrivalOtMasterInput) {
+    arrivalOtMasterInput.checked = Boolean(state.arrivalOtMaster);
+  }
+  const arrivalOtSundayInput = document.getElementById('arrivalOtSunday');
+  if (arrivalOtSundayInput) {
+    arrivalOtSundayInput.checked = Boolean(state.arrivalOtSunday);
+  }
+  const departureOtMasterInput = document.getElementById('departureOtMaster');
+  if (departureOtMasterInput) {
+    departureOtMasterInput.checked = Boolean(state.departureOtMaster);
+  }
+  const departureOtSundayInput = document.getElementById('departureOtSunday');
+  if (departureOtSundayInput) {
+    departureOtSundayInput.checked = Boolean(state.departureOtSunday);
+  }
+  const discountEnabledInput = document.getElementById('discountEnabled');
+  if (discountEnabledInput) {
+    discountEnabledInput.checked = Boolean(state.discountEnabled);
+  }
+  const discountPercentField = document.getElementById('discountPercent');
+  if (discountPercentField) {
+    discountPercentField.value = state.discountPercent == null ? '' : String(state.discountPercent);
   }
 
   const gtInput = document.getElementById('gt');
@@ -606,6 +779,8 @@ function restoreTugsState() {
   updateTugTitles();
   syncImoMaster();
   syncLinesMaster();
+  updateOvertimeMasterVisibility();
+  updateDiscountEnabledState();
   calculate();
   saveTugsState();
   return true;
@@ -625,6 +800,12 @@ function copyTugboatsFromPdaToSailing() {
     gt: gtInput ? String(gtInput.value || '') : String(sourceState.gt || ''),
     imoMaster: Boolean(sourceState.imoMaster),
     linesMaster: Boolean(sourceState.linesMaster),
+    arrivalOtMaster: Boolean(sourceState.arrivalOtMaster),
+    arrivalOtSunday: Boolean(sourceState.arrivalOtSunday),
+    departureOtMaster: Boolean(sourceState.departureOtMaster),
+    departureOtSunday: Boolean(sourceState.departureOtSunday),
+    discountEnabled: Boolean(sourceState.discountEnabled),
+    discountPercent: sourceState.discountPercent == null ? '' : String(sourceState.discountPercent),
     tugs: sourceState.tugs.map((tug) => ({
       op: tug && tug.op === 'departure' ? 'departure' : 'arrival',
       voyage: tug && tug.voyage != null ? String(tug.voyage) : '1',
@@ -702,6 +883,18 @@ const PROTECTED_OUTLAY_REFRESH_DEFINITIONS = [
   {
     key: 'port-dues',
     match: (row, desc) => row.dataset.row === 'port-dues' || desc.startsWith('PORT DUES')
+  },
+  {
+    key: 'bunkering',
+    match: (row, desc) => row.dataset.row === 'bunkering' || row.dataset.row === 'bunker' || desc.startsWith('BUNKER')
+  },
+  {
+    key: 'berthage-quayage',
+    match: (row, desc) =>
+      row.dataset.row === 'berthage-quayage' ||
+      row.dataset.row === 'berthage-anchorage-extra' ||
+      desc.startsWith('BERHAGE/QUAYAGE') ||
+      desc.startsWith('BERTHAGE/QUAYAGE')
   },
   {
     key: 'pilotage',
@@ -798,6 +991,14 @@ function refreshProtectedOutlayRow(key) {
   }
   if (key === 'port-dues') {
     updatePortDuesFromStorage();
+    return;
+  }
+  if (key === 'bunkering') {
+    updateBunkeringFromStorage();
+    return;
+  }
+  if (key === 'berthage-quayage') {
+    updateBerthageFromStorage();
     return;
   }
   if (key === 'pilotage') {
@@ -1179,12 +1380,35 @@ function updateTowageFromStorage() {
 
   let arrivalCount = Number(arrivalCountRaw);
   let departureCount = Number(departureCountRaw);
+  let totalValue = Number(totalRaw);
+  let sailingTotalValue = Number(sailingTotalRaw);
+
+  const hasStoredCounts = Number.isFinite(arrivalCount) || Number.isFinite(departureCount);
+  const hasStoredTotals = Number.isFinite(totalValue) || Number.isFinite(sailingTotalValue);
   if ((!Number.isFinite(arrivalCount) || !Number.isFinite(departureCount)) && pdaCalc) {
     arrivalCount = pdaCalc.arrivalCount;
     departureCount = pdaCalc.departureCount;
     safeStorageSet(pdaKeys.towageArrivalCount, arrivalCount);
     safeStorageSet(pdaKeys.towageDepartureCount, departureCount);
   }
+  if (!hasStoredCounts && !hasStoredTotals) {
+    if (descInput) {
+      const baseText = descInput.dataset.baseText || 'TOWAGE';
+      descInput.value = baseText;
+      autoResizeTextarea(descInput);
+    }
+    const pdaInput = towageRow.querySelector('td:nth-child(2) input');
+    const sailingInput = towageRow.querySelector('td:nth-child(3) input');
+    if (pdaInput) {
+      pdaInput.value = formatMoneyValue(0);
+      delete pdaInput.dataset.rawValue;
+    }
+    if (sailingInput) sailingInput.value = formatMoneyValue(0);
+    recalcOutlayTotals();
+    saveIndexState();
+    return;
+  }
+
   if (descInput) {
     descInput.dataset.baseText = 'TOWAGE';
     const safeArrival = Number.isFinite(arrivalCount) ? arrivalCount : 0;
@@ -1193,7 +1417,6 @@ function updateTowageFromStorage() {
     autoResizeTextarea(descInput);
   }
 
-  let totalValue = Number(totalRaw);
   if (!Number.isFinite(totalValue) && pdaCalc) {
     totalValue = pdaCalc.grandTotal;
     safeStorageSet(pdaKeys.towageTotal, totalValue.toFixed(2));
@@ -1210,7 +1433,6 @@ function updateTowageFromStorage() {
       delete pdaInput.dataset.rawValue;
     }
   }
-  let sailingTotalValue = Number(sailingTotalRaw);
   if (!Number.isFinite(sailingTotalValue) && sailingCalc) {
     sailingTotalValue = sailingCalc.grandTotal;
     safeStorageSet(sailingKeys.towageTotal, sailingTotalValue.toFixed(2));
@@ -1246,6 +1468,20 @@ function getCurrentQuantityValue() {
   return parseMoneyValue(raw);
 }
 
+function getCurrentLengthOverallRawValue() {
+  const lengthInput = document.getElementById('lengthOverall');
+  if (lengthInput) return String(lengthInput.value || '').trim();
+  const state = parseStoredJson(safeStorageGet(STORAGE_KEYS.indexState));
+  if (state && state.fields && typeof state.fields.lengthOverall === 'string') {
+    return String(state.fields.lengthOverall || '').trim();
+  }
+  return '';
+}
+
+function getCurrentLengthOverallValue() {
+  return parseMoneyValue(getCurrentLengthOverallRawValue());
+}
+
 function parseStoredJson(raw) {
   if (!raw) return null;
   try {
@@ -1264,7 +1500,7 @@ function getSelectedPeriodFromState(state) {
 
 function getLightDuesCalculationFromState(state, gt) {
   if (!state || typeof state !== 'object') return null;
-  const type = typeof state.type === 'string' ? state.type : 'cargo';
+  const type = typeof state.type === 'string' ? state.type : LIGHT_DUES_DEFAULT_TYPE;
   const tierBand = state.tierBand || state.bulkBand || '';
   const tariff = getLightDuesTariff(type, tierBand, gt);
   const selectedPeriod = getSelectedPeriodFromState(state);
@@ -1403,74 +1639,87 @@ function findPortDuesRow() {
   }) || null;
 }
 
-function findBunkerRow() {
-  return document.querySelector('tr[data-row="bunker"]');
+function findBunkeringRow() {
+  const byDataRow = document.querySelector('tr[data-row="bunkering"], tr[data-row="bunker"]');
+  if (byDataRow) {
+    if (byDataRow.dataset.row === 'bunker') byDataRow.dataset.row = 'bunkering';
+    return byDataRow;
+  }
+  const tbody = document.getElementById('outlaysBody');
+  if (!tbody) return null;
+  return Array.from(tbody.querySelectorAll('tr')).find((row) => {
+    const descField = row.querySelector('td.desc textarea, td.desc input');
+    const desc = String(descField?.value || '').trim().toUpperCase();
+    return desc.startsWith('BUNKER');
+  }) || null;
 }
 
-function createBunkerRow() {
+function createBunkeringRow() {
   const row = document.createElement('tr');
-  row.dataset.row = 'bunker';
+  row.dataset.row = 'bunkering';
   row.innerHTML = `
     <td class="desc"><textarea class="cell-input text" rows="1">${BUNKER_ROW_DESCRIPTION}</textarea></td>
-    <td><input class="cell-input money" value="" /></td>
-    <td><input class="cell-input money" value="" /></td>
+    <td><input class="cell-input money" placeholder="0,00" /></td>
+    <td><input class="cell-input money" placeholder="0,00" /></td>
   `;
   return row;
 }
 
-function ensureBunkerRowAfterPortDues() {
-  const portDuesRow = findPortDuesRow();
-  if (!portDuesRow || !portDuesRow.parentElement) return null;
-  const tbody = portDuesRow.parentElement;
+function findPilotageRow() {
+  const tbody = document.getElementById('outlaysBody');
+  if (!tbody) return null;
+  return Array.from(tbody.querySelectorAll('tr')).find((row) => {
+    const descField = row.querySelector('td.desc textarea, td.desc input');
+    const desc = String(descField?.value || '').trim().toUpperCase();
+    return row.dataset.row === 'pilotage' || desc.startsWith('PILOTAGE');
+  }) || null;
+}
 
-  let bunkerRow = findBunkerRow();
-  if (!bunkerRow) {
-    bunkerRow = createBunkerRow();
-  }
+function ensureBunkeringRow() {
+  const existing = findBunkeringRow();
+  if (existing) return existing;
 
-  const targetNext = portDuesRow.nextElementSibling;
-  if (targetNext !== bunkerRow) {
-    tbody.insertBefore(bunkerRow, targetNext);
+  const tbody = document.getElementById('outlaysBody');
+  if (!tbody) return null;
+
+  const row = createBunkeringRow();
+  const pilotageRow = findPilotageRow();
+  if (pilotageRow && pilotageRow.parentElement === tbody) {
+    tbody.insertBefore(row, pilotageRow);
+  } else {
+    const portDuesRow = findPortDuesRow();
+    if (portDuesRow && portDuesRow.parentElement === tbody) {
+      tbody.insertBefore(row, portDuesRow.nextElementSibling);
+    } else {
+      const bankRow = tbody.querySelector('tr[data-row="bank-charges"]');
+      if (bankRow) tbody.insertBefore(row, bankRow);
+      else tbody.appendChild(row);
+    }
   }
 
   decorateOutlayRows();
   wrapMoneyFields();
   decorateMoneyEditCells();
-  const descInput = bunkerRow.querySelector('textarea.cell-input.text');
+  const descInput = row.querySelector('textarea.cell-input.text');
   if (descInput) autoResizeTextarea(descInput);
-  return bunkerRow;
+  return row;
 }
 
-function updateBunkerRowFromStorage() {
-  const pdaBunkeringRaw = Number(safeStorageGet(STORAGE_KEYS.portDuesBunkeringAmountPda));
-  const sailingBunkeringRaw = Number(safeStorageGet(STORAGE_KEYS.portDuesBunkeringAmountSailing));
-
-  const pdaBunkering = Number.isFinite(pdaBunkeringRaw) ? pdaBunkeringRaw : 0;
-  const sailingBunkering = Number.isFinite(sailingBunkeringRaw) ? sailingBunkeringRaw : 0;
-  const hasBunkering = pdaBunkering > 0 || sailingBunkering > 0;
-
-  const existingBunkerRow = findBunkerRow();
-  if (!hasBunkering) {
-    if (existingBunkerRow) {
-      existingBunkerRow.remove();
-      recalcOutlayTotals();
-      saveIndexState();
-    }
-    return;
-  }
-
-  const bunkerRow = ensureBunkerRowAfterPortDues();
-  if (!bunkerRow) return;
+function updateBunkeringFromStorage() {
+  const bunkeringRow = ensureBunkeringRow();
+  if (!bunkeringRow) return;
 
   let changed = false;
-  const descInput = bunkerRow.querySelector('td.desc textarea, td.desc input');
+  const descInput = bunkeringRow.querySelector('td.desc textarea, td.desc input');
   if (descInput && descInput.value !== BUNKER_ROW_DESCRIPTION) {
     descInput.value = BUNKER_ROW_DESCRIPTION;
     if (descInput.tagName === 'TEXTAREA') autoResizeTextarea(descInput);
     changed = true;
   }
 
-  const pdaInput = bunkerRow.querySelector('td:nth-child(2) input.cell-input.money');
+  const pdaInput = bunkeringRow.querySelector('td:nth-child(2) input.cell-input.money');
+  const pdaBunkeringRaw = Number(safeStorageGet(STORAGE_KEYS.portDuesBunkeringAmountPda));
+  const pdaBunkering = Number.isFinite(pdaBunkeringRaw) ? pdaBunkeringRaw : 0;
   if (pdaInput) {
     const formatted = formatMoneyValue(pdaBunkering);
     if (pdaInput.value !== formatted) {
@@ -1481,13 +1730,228 @@ function updateBunkerRowFromStorage() {
     }
   }
 
-  const sailingInput = bunkerRow.querySelector('td:nth-child(3) input.cell-input.money');
+  const sailingInput = bunkeringRow.querySelector('td:nth-child(3) input.cell-input.money');
+  const sailingBunkeringRaw = Number(safeStorageGet(STORAGE_KEYS.portDuesBunkeringAmountSailing));
+  const sailingBunkering = Number.isFinite(sailingBunkeringRaw) ? sailingBunkeringRaw : 0;
   if (sailingInput) {
     const formatted = formatMoneyValue(sailingBunkering);
     if (sailingInput.value !== formatted) {
       sailingInput.value = formatted;
       changed = true;
     }
+  }
+
+  if (changed) {
+    recalcOutlayTotals();
+    saveIndexState();
+  }
+}
+
+function findBerthageQuayageRow() {
+  const byDataRow = document.querySelector('tr[data-row="berthage-quayage"]');
+  if (byDataRow) return byDataRow;
+  const tbody = document.getElementById('outlaysBody');
+  if (!tbody) return null;
+  return Array.from(tbody.querySelectorAll('tr')).find((row) => {
+    const descField = row.querySelector('td.desc textarea, td.desc input');
+    const desc = String(descField?.value || '').trim().toUpperCase();
+    return desc.startsWith('BERHAGE/QUAYAGE') || desc.startsWith('BERTHAGE/QUAYAGE');
+  }) || null;
+}
+
+function createBerthageQuayageRow() {
+  const row = document.createElement('tr');
+  row.dataset.row = 'berthage-quayage';
+  row.innerHTML = `
+    <td class="desc"><textarea class="cell-input text" rows="1">${BERTHAGE_QUAYAGE_ROW_DESCRIPTION}</textarea></td>
+    <td><input class="cell-input money" placeholder="0,00" /></td>
+    <td><input class="cell-input money" placeholder="0,00" /></td>
+  `;
+  return row;
+}
+
+function ensureBerthageQuayageRow() {
+  const existing = findBerthageQuayageRow();
+  if (existing) return existing;
+
+  const tbody = document.getElementById('outlaysBody');
+  if (!tbody) return null;
+
+  const row = createBerthageQuayageRow();
+  const pilotageRow = findPilotageRow();
+  if (pilotageRow && pilotageRow.parentElement === tbody) {
+    tbody.insertBefore(row, pilotageRow);
+  } else {
+    const bankRow = tbody.querySelector('tr[data-row="bank-charges"]');
+    if (bankRow) tbody.insertBefore(row, bankRow);
+    else tbody.appendChild(row);
+  }
+
+  decorateOutlayRows();
+  wrapMoneyFields();
+  decorateMoneyEditCells();
+  const descInput = row.querySelector('textarea.cell-input.text');
+  if (descInput) autoResizeTextarea(descInput);
+  return row;
+}
+
+function findBerthageAnchorageExtraRow() {
+  return document.querySelector('tr[data-row="berthage-anchorage-extra"]');
+}
+
+function createBerthageAnchorageExtraRow() {
+  const row = document.createElement('tr');
+  row.dataset.row = 'berthage-anchorage-extra';
+  row.innerHTML = `
+    <td class="desc"><textarea class="cell-input text" rows="1">ANCHORAGE</textarea></td>
+    <td><input class="cell-input money" placeholder="0,00" /></td>
+    <td><input class="cell-input money" placeholder="0,00" /></td>
+  `;
+  return row;
+}
+
+function ensureBerthageAnchorageExtraRow(baseRow) {
+  if (!baseRow || !baseRow.parentElement) return null;
+  const tbody = baseRow.parentElement;
+  let extraRow = findBerthageAnchorageExtraRow();
+  if (!extraRow) {
+    extraRow = createBerthageAnchorageExtraRow();
+  }
+
+  const targetNext = baseRow.nextElementSibling;
+  if (targetNext !== extraRow) {
+    tbody.insertBefore(extraRow, targetNext);
+  }
+
+  extraRow.hidden = false;
+  delete extraRow.dataset.outlayHidden;
+  decorateOutlayRows();
+  wrapMoneyFields();
+  decorateMoneyEditCells();
+  const descInput = extraRow.querySelector('textarea.cell-input.text');
+  if (descInput) autoResizeTextarea(descInput);
+  return extraRow;
+}
+
+function removeBerthageAnchorageExtraRow() {
+  const extraRow = findBerthageAnchorageExtraRow();
+  if (!extraRow) return false;
+  extraRow.remove();
+  return true;
+}
+
+function formatDaysLabel(daysValue) {
+  if (!Number.isFinite(daysValue) || daysValue <= 0) return '0';
+  const rounded = Math.round(daysValue);
+  if (Math.abs(daysValue - rounded) < 1e-9) return String(rounded);
+  return String(daysValue).replace('.', ',');
+}
+
+function setMoneyInputAmount(input, amount, allowRoundingDataset) {
+  if (!input) return false;
+  const formatted = formatMoneyValue(amount);
+  if (input.value === formatted) {
+    if (allowRoundingDataset) {
+      if (isPdaRoundingEnabled()) input.dataset.rawValue = formatted;
+      else delete input.dataset.rawValue;
+    }
+    return false;
+  }
+  input.value = formatted;
+  if (allowRoundingDataset) {
+    if (isPdaRoundingEnabled()) input.dataset.rawValue = formatted;
+    else delete input.dataset.rawValue;
+  }
+  return true;
+}
+
+function getBerthageAnchorageCalculationFromState(state, lengthOverall) {
+  if (!state || typeof state !== 'object') {
+    return {
+      berthageAmount: 0,
+      anchorageAmount: 0,
+      totalAmount: 0
+    };
+  }
+  const lengthValue = Number.isFinite(lengthOverall) && lengthOverall > 0 ? lengthOverall : 0;
+  const berthageDays = parseMoneyValue(state.berthageDays);
+  const anchorageDays = parseMoneyValue(state.anchorageDays);
+  const berthageAmount = state.berthageEnabled && lengthValue > 0 && berthageDays > 0
+    ? lengthValue * BERTHAGE_TARIFF_RATE * berthageDays
+    : 0;
+  const anchorageAmount = state.anchorageEnabled && lengthValue > 0 && anchorageDays > 0
+    ? lengthValue * ANCHORAGE_TARIFF_RATE * anchorageDays
+    : 0;
+
+  return {
+    berthageAmount,
+    anchorageAmount,
+    totalAmount: berthageAmount + anchorageAmount
+  };
+}
+
+function updateBerthageFromStorage() {
+  const row = ensureBerthageQuayageRow();
+  if (!row) return;
+
+  let changed = false;
+  const lengthOverall = getCurrentLengthOverallValue();
+  const pdaState = parseStoredJson(safeStorageGet(STORAGE_KEYS.berthageState));
+  const sailingState = parseStoredJson(safeStorageGet(STORAGE_KEYS.berthageStateSailing));
+  const pdaCalc = getBerthageAnchorageCalculationFromState(pdaState, lengthOverall);
+  const sailingCalc = getBerthageAnchorageCalculationFromState(sailingState, lengthOverall);
+  safeStorageSet(STORAGE_KEYS.berthageAmountPda, pdaCalc.totalAmount.toFixed(2));
+  safeStorageSet(STORAGE_KEYS.berthageAmountSailing, sailingCalc.totalAmount.toFixed(2));
+
+  const pdaBerthageEnabled = Boolean(pdaState && pdaState.berthageEnabled);
+  const pdaAnchorageEnabled = Boolean(pdaState && pdaState.anchorageEnabled);
+  const pdaBerthageDays = parseMoneyValue(pdaState && pdaState.berthageDays);
+  const pdaAnchorageDays = parseMoneyValue(pdaState && pdaState.anchorageDays);
+
+  const descInput = row.querySelector('td.desc textarea, td.desc input');
+  const primaryPdaInput = row.querySelector('td:nth-child(2) input.cell-input.money');
+  const primarySailingInput = row.querySelector('td:nth-child(3) input.cell-input.money');
+
+  let primaryDesc = BERTHAGE_QUAYAGE_ROW_DESCRIPTION;
+  let primaryPdaAmount = 0;
+  let primarySailingAmount = 0;
+  const showAnchorageExtraRow = pdaBerthageEnabled && pdaAnchorageEnabled;
+
+  if (pdaBerthageEnabled) {
+    primaryDesc = `BERTHAGE/QUAYAGE (2 EUR x ${formatDaysLabel(pdaBerthageDays)} DAYS)`;
+    primaryPdaAmount = pdaCalc.berthageAmount;
+    primarySailingAmount = sailingCalc.berthageAmount;
+  } else if (pdaAnchorageEnabled) {
+    primaryDesc = `ANCHORAGE (1 EUR x ${formatDaysLabel(pdaAnchorageDays)} DAYS)`;
+    primaryPdaAmount = pdaCalc.anchorageAmount;
+    primarySailingAmount = sailingCalc.anchorageAmount;
+  }
+
+  if (descInput && descInput.value !== primaryDesc) {
+    descInput.value = primaryDesc;
+    if (descInput.tagName === 'TEXTAREA') autoResizeTextarea(descInput);
+    changed = true;
+  }
+  changed = setMoneyInputAmount(primaryPdaInput, primaryPdaAmount, true) || changed;
+  changed = setMoneyInputAmount(primarySailingInput, primarySailingAmount, false) || changed;
+
+  if (showAnchorageExtraRow) {
+    const extraRow = ensureBerthageAnchorageExtraRow(row);
+    if (extraRow) {
+      const extraDescInput = extraRow.querySelector('td.desc textarea, td.desc input');
+      const extraDesc = `ANCHORAGE (1 EUR x ${formatDaysLabel(pdaAnchorageDays)} DAYS)`;
+      if (extraDescInput && extraDescInput.value !== extraDesc) {
+        extraDescInput.value = extraDesc;
+        if (extraDescInput.tagName === 'TEXTAREA') autoResizeTextarea(extraDescInput);
+        changed = true;
+      }
+      const extraPdaInput = extraRow.querySelector('td:nth-child(2) input.cell-input.money');
+      const extraSailingInput = extraRow.querySelector('td:nth-child(3) input.cell-input.money');
+      changed = setMoneyInputAmount(extraPdaInput, pdaCalc.anchorageAmount, true) || changed;
+      changed = setMoneyInputAmount(extraSailingInput, sailingCalc.anchorageAmount, false) || changed;
+    }
+  } else if (removeBerthageAnchorageExtraRow()) {
+    changed = true;
   }
 
   if (changed) {
@@ -1509,15 +1973,10 @@ function getPortDuesCalculationFromState(state, quantityValue, options) {
     : (quantityValue > 0 ? quantityValue : cargoQuantityFromState);
   const cargoAmount = cargoQuantity > 0 ? cargoQuantity * cargoType.rate : 0;
 
-  const bunkeringEnabled = Boolean(state.bunkeringEnabled);
-  const bunkeringQuantity = parseMoneyValue(state.bunkeringQuantity);
-  const bunkeringAmount = bunkeringEnabled && bunkeringQuantity > 0 ? bunkeringQuantity * 0.3 : 0;
-
   return {
     coefficientLabel: cargoType.label,
     cargoAmount,
-    bunkeringAmount,
-    totalAmount: cargoAmount + bunkeringAmount
+    totalAmount: cargoAmount
   };
 }
 
@@ -1563,11 +2022,6 @@ function updatePortDuesFromStorage() {
     pdaAmount = pdaCalc.totalAmount;
     safeStorageSet(STORAGE_KEYS.portDuesAmountPda, pdaCalc.totalAmount.toFixed(2));
     safeStorageSet(STORAGE_KEYS.portDuesCargoAmountPda, pdaCalc.cargoAmount.toFixed(2));
-    if (pdaCalc.bunkeringAmount > 0) {
-      safeStorageSet(STORAGE_KEYS.portDuesBunkeringAmountPda, pdaCalc.bunkeringAmount.toFixed(2));
-    } else {
-      safeStorageRemove(STORAGE_KEYS.portDuesBunkeringAmountPda);
-    }
   } else if (hasValidQuantity && descCoefficient) {
     pdaAmount = quantity * descCoefficient.value;
     safeStorageSet(STORAGE_KEYS.portDuesAmountPda, pdaAmount.toFixed(2));
@@ -1577,7 +2031,6 @@ function updatePortDuesFromStorage() {
     pdaAmount = 0;
     safeStorageRemove(STORAGE_KEYS.portDuesAmountPda);
     safeStorageRemove(STORAGE_KEYS.portDuesCargoAmountPda);
-    safeStorageRemove(STORAGE_KEYS.portDuesBunkeringAmountPda);
   }
 
   if (pdaInput && Number.isFinite(pdaAmount)) {
@@ -1596,11 +2049,6 @@ function updatePortDuesFromStorage() {
     sailingAmount = sailingCalc.totalAmount;
     safeStorageSet(STORAGE_KEYS.portDuesAmountSailing, sailingCalc.totalAmount.toFixed(2));
     safeStorageSet(STORAGE_KEYS.portDuesCargoAmountSailing, sailingCalc.cargoAmount.toFixed(2));
-    if (sailingCalc.bunkeringAmount > 0) {
-      safeStorageSet(STORAGE_KEYS.portDuesBunkeringAmountSailing, sailingCalc.bunkeringAmount.toFixed(2));
-    } else {
-      safeStorageRemove(STORAGE_KEYS.portDuesBunkeringAmountSailing);
-    }
   } else if (hasValidQuantity && !sailingTerminalDischargedEnabled) {
     if (sailingState && sailingCalc === null) {
       // keep existing value if sailing state exists but cannot be calculated.
@@ -1618,7 +2066,6 @@ function updatePortDuesFromStorage() {
     sailingAmount = 0;
     safeStorageRemove(STORAGE_KEYS.portDuesAmountSailing);
     safeStorageRemove(STORAGE_KEYS.portDuesCargoAmountSailing);
-    safeStorageRemove(STORAGE_KEYS.portDuesBunkeringAmountSailing);
   }
 
   if (sailingInput && Number.isFinite(sailingAmount)) {
@@ -1633,7 +2080,6 @@ function updatePortDuesFromStorage() {
     recalcOutlayTotals();
     saveIndexState();
   }
-  updateBunkerRowFromStorage();
 }
 
 function findMooringRow() {
@@ -1643,16 +2089,6 @@ function findMooringRow() {
     const descField = row.querySelector('td.desc textarea, td.desc input');
     const desc = String(descField?.value || '').trim().toUpperCase();
     return desc.startsWith('MOORING/UNMOORING');
-  }) || null;
-}
-
-function findPilotageRow() {
-  const tbody = document.getElementById('outlaysBody');
-  if (!tbody) return null;
-  return Array.from(tbody.querySelectorAll('tr')).find((row) => {
-    const descField = row.querySelector('td.desc textarea, td.desc input');
-    const desc = String(descField?.value || '').trim().toUpperCase();
-    return desc.startsWith('PILOTAGE');
   }) || null;
 }
 
@@ -2063,6 +2499,10 @@ function shouldShowInlineMoneyEdit(row) {
   const editablePrefixes = [
     'LIGHT DUES',
     'PORT DUES',
+    'BUNKER',
+    'BERHAGE/QUAYAGE',
+    'BERTHAGE/QUAYAGE',
+    'ANCHORAGE',
     'PILOTAGE',
     'PILOT BOAT',
     'MOORING/UNMOORING'
@@ -2102,6 +2542,42 @@ function getInlineMoneyEditConfig(row, columnIndex) {
     return {
       onClick: 'openPortDuesSailingPda()',
       ariaLabel: 'Edit port dues sailing PDA'
+    };
+  }
+  if (desc.startsWith('BUNKER')) {
+    if (columnIndex === 2) {
+      return {
+        onClick: 'openBunkeringPda()',
+        ariaLabel: 'Edit bunkering PDA'
+      };
+    }
+    return {
+      onClick: 'openBunkeringSailingPda()',
+      ariaLabel: 'Edit bunkering sailing PDA'
+    };
+  }
+  if (desc.startsWith('BERHAGE/QUAYAGE') || desc.startsWith('BERTHAGE/QUAYAGE')) {
+    if (columnIndex === 2) {
+      return {
+        onClick: 'openBerthageAnchoragePda()',
+        ariaLabel: 'Edit berthage/quayage PDA'
+      };
+    }
+    return {
+      onClick: 'openBerthageAnchorageSailingPda()',
+      ariaLabel: 'Edit berthage/quayage sailing PDA'
+    };
+  }
+  if (desc.startsWith('ANCHORAGE')) {
+    if (columnIndex === 2) {
+      return {
+        onClick: 'openBerthageAnchoragePda()',
+        ariaLabel: 'Edit anchorage PDA'
+      };
+    }
+    return {
+      onClick: 'openBerthageAnchorageSailingPda()',
+      ariaLabel: 'Edit anchorage sailing PDA'
     };
   }
   if (desc.startsWith('PILOTAGE')) {
@@ -2329,13 +2805,48 @@ function applyPrintDensity() {
   }
 }
 
+function shouldUseMobilePrintProfile() {
+  const ua = (navigator && navigator.userAgent) ? navigator.userAgent : '';
+  if (/Android|webOS|iPhone|iPad|iPod|Mobile|CriOS|FxiOS/i.test(ua)) return true;
+  const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+  if (Number.isFinite(viewportWidth) && viewportWidth > 0 && viewportWidth <= 900) return true;
+  const screenWidth = window.screen && Number.isFinite(window.screen.width) ? window.screen.width : 0;
+  if (screenWidth > 0 && screenWidth <= 900) return true;
+  return window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+}
+
+function enableMobilePrintFooterSuppression() {
+  if (mobilePrintPageStyle) return;
+  if (!document.body.classList.contains('print-from-mobile')) return;
+  const style = document.createElement('style');
+  style.id = 'mobilePrintPageStyle';
+  style.textContent = '@page { margin: 0 !important; size: A4; }';
+  document.head.appendChild(style);
+  mobilePrintPageStyle = style;
+}
+
+function disableMobilePrintFooterSuppression() {
+  if (!mobilePrintPageStyle) return;
+  mobilePrintPageStyle.remove();
+  mobilePrintPageStyle = null;
+}
+
 function printFit() {
   applyPrintDensity();
   document.body.classList.add('print-fit');
+  if (document.body.classList.contains('page-index')) {
+    document.body.classList.add('print-desktop-lock');
+    if (shouldUseMobilePrintProfile()) {
+      document.body.classList.add('print-from-mobile');
+      enableMobilePrintFooterSuppression();
+    } else {
+      disableMobilePrintFooterSuppression();
+    }
+  }
   updatePrintHidden();
   setTimeout(() => {
     window.print();
-  }, 50);
+  }, 160);
 }
 
 function escapeHtml(value) {
@@ -2555,6 +3066,30 @@ async function openPortDuesSailingPda() {
   window.location.href = 'port-dues-sailing-pda.html';
 }
 
+async function openBunkeringPda() {
+  saveIndexState();
+  await autosaveCurrentPdaBeforeNavigation();
+  window.location.href = 'bunkering-pda.html';
+}
+
+async function openBunkeringSailingPda() {
+  saveIndexState();
+  await autosaveCurrentPdaBeforeNavigation();
+  window.location.href = 'bunkering-sailing-pda.html';
+}
+
+async function openBerthageAnchoragePda() {
+  saveIndexState();
+  await autosaveCurrentPdaBeforeNavigation();
+  window.location.href = 'berthage-anchorage-pda.html';
+}
+
+async function openBerthageAnchorageSailingPda() {
+  saveIndexState();
+  await autosaveCurrentPdaBeforeNavigation();
+  window.location.href = 'berthage-anchorage-sailing-pda.html';
+}
+
 async function openPilotagePda() {
   saveIndexState();
   const gtInputIndex = document.getElementById('grossTonnage');
@@ -2654,6 +3189,15 @@ function initIndex() {
   const outlaysBody = document.getElementById('outlaysBody');
   if (!outlaysBody) return;
 
+  if (isNewDraftMode()) {
+    clearCalculatorStorageForNewDraft();
+    safeStorageRemove(STORAGE_KEYS.indexState);
+  }
+
+  if (!defaultOutlaysHtml) {
+    defaultOutlaysHtml = outlaysBody.innerHTML;
+  }
+
   document.body.classList.add('density-comfortable');
   restoreIndexState();
   decorateOutlayRows();
@@ -2737,22 +3281,22 @@ function initIndex() {
   const globalImoTransport = document.getElementById('globalImoTransport');
   const optionsCard = document.getElementById('optionsCard');
   const optionsBody = document.getElementById('optionsBody');
-  const optionsShowLessBtn = document.getElementById('optionsShowLessBtn');
-  const optionsShowMoreBtn = document.getElementById('optionsShowMoreBtn');
+  const optionsToggleBtn = document.getElementById('optionsToggleBtn');
+  const optionsToggleLabel = optionsToggleBtn ? optionsToggleBtn.querySelector('.options-toggle-label') : null;
   const setOptionsExpanded = (expanded) => {
-    if (!optionsCard || !optionsBody || !optionsShowLessBtn || !optionsShowMoreBtn) return;
+    if (!optionsCard || !optionsBody || !optionsToggleBtn) return;
     optionsCard.classList.toggle('is-expanded', Boolean(expanded));
     optionsCard.classList.toggle('is-collapsed', !expanded);
     optionsBody.hidden = !expanded;
-    optionsShowLessBtn.classList.toggle('active', !expanded);
-    optionsShowMoreBtn.classList.toggle('active', Boolean(expanded));
-    optionsShowLessBtn.setAttribute('aria-pressed', expanded ? 'false' : 'true');
-    optionsShowMoreBtn.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+    optionsToggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    if (optionsToggleLabel) optionsToggleLabel.textContent = expanded ? 'Less' : 'More';
   };
-  if (optionsCard && optionsBody && optionsShowLessBtn && optionsShowMoreBtn) {
+  if (optionsCard && optionsBody && optionsToggleBtn) {
     setOptionsExpanded(false);
-    optionsShowLessBtn.addEventListener('click', () => setOptionsExpanded(false));
-    optionsShowMoreBtn.addEventListener('click', () => setOptionsExpanded(true));
+    optionsToggleBtn.addEventListener('click', () => {
+      const isExpanded = optionsToggleBtn.getAttribute('aria-expanded') === 'true';
+      setOptionsExpanded(!isExpanded);
+    });
   }
   if (togglePda) {
     togglePda.addEventListener('change', () => {
@@ -2788,11 +3332,14 @@ function initIndex() {
     } else if (globalImoTransport.checked !== globalImoState) {
       globalImoTransport.checked = globalImoState;
     }
+    setGlobalImoTransportState(Boolean(globalImoTransport.checked));
 
     globalImoTransport.addEventListener('change', () => {
       setGlobalImoTransportState(Boolean(globalImoTransport.checked));
       updateTowageFromStorage();
+      updateLightDuesFromStorage();
       updatePilotageFromStorage();
+      updatePortDuesFromStorage();
       updateImoToggleLabelColor(globalImoTransport);
       saveIndexState();
     });
@@ -2831,6 +3378,14 @@ function initIndex() {
       updateLightDuesFromStorage();
       updatePilotageFromStorage();
       updateMooringFromStorage();
+      saveIndexState();
+    });
+  }
+
+  const lengthOverallInput = document.getElementById('lengthOverall');
+  if (lengthOverallInput) {
+    lengthOverallInput.addEventListener('input', () => {
+      updateBerthageFromStorage();
       saveIndexState();
     });
   }
@@ -2908,6 +3463,8 @@ function initIndex() {
   updateTowageFromStorage();
   updateLightDuesFromStorage();
   updatePortDuesFromStorage();
+  updateBunkeringFromStorage();
+  updateBerthageFromStorage();
   updatePilotageFromStorage();
   updatePilotBoatFromStorage();
   updateMooringFromStorage();
@@ -2917,6 +3474,8 @@ function initIndex() {
     updateTowageFromStorage();
     updateLightDuesFromStorage();
     updatePortDuesFromStorage();
+    updateBunkeringFromStorage();
+    updateBerthageFromStorage();
     updatePilotageFromStorage();
     updatePilotBoatFromStorage();
     updateMooringFromStorage();
@@ -2933,6 +3492,8 @@ function initIndex() {
     updateTowageFromStorage();
     updateLightDuesFromStorage();
     updatePortDuesFromStorage();
+    updateBunkeringFromStorage();
+    updateBerthageFromStorage();
     updatePilotageFromStorage();
     updatePilotBoatFromStorage();
     updateMooringFromStorage();
@@ -3003,13 +3564,24 @@ function getLightDuesTariff(type, tierBand, gt) {
     const resolvedBand = tierBand || getTierBandFromGt(type, gt);
     return LIGHT_DUES_TARIFFS[type][resolvedBand] || LIGHT_DUES_TARIFFS[type][tierOptions[0].value];
   }
-  return LIGHT_DUES_TARIFFS[type] || LIGHT_DUES_TARIFFS.cargo;
+  return LIGHT_DUES_TARIFFS[type] || LIGHT_DUES_TARIFFS[LIGHT_DUES_DEFAULT_TYPE];
 }
 
 function setTierVisibility(typeInput, tierWrap) {
   if (!typeInput || !tierWrap) return;
   const hasTierOptions = Boolean(LIGHT_DUES_TIER_OPTIONS[typeInput.value]);
   tierWrap.style.display = hasTierOptions ? '' : 'none';
+}
+
+function enforceLightDuesTypeFromImo(typeInput, tierBandInput, gtInput) {
+  if (!typeInput || !isLightDuesPdaPage() && !isLightDuesSailingPage()) return false;
+  const globalImo = getGlobalImoTransportState();
+  const targetType = globalImo ? 'tanker' : LIGHT_DUES_DEFAULT_TYPE;
+  if (typeInput.value === targetType) return false;
+  typeInput.value = targetType;
+  rebuildTierOptions(typeInput, tierBandInput, '', Number(gtInput?.value));
+  setTierVisibility(typeInput, document.getElementById('lightDuesTierWrap'));
+  return true;
 }
 
 function saveLightDuesState() {
@@ -3163,6 +3735,7 @@ function initLightDues() {
   if (!typeInput || !tierBandInput || !tierWrap || !gtInput || !period30Input || !period12Input) return;
 
   restoreLightDuesState(typeInput, tierBandInput, gtInput, period30Input, period12Input);
+  enforceLightDuesTypeFromImo(typeInput, tierBandInput, gtInput);
   setTierVisibility(typeInput, tierWrap);
   calculateLightDues();
 
@@ -3212,8 +3785,14 @@ function initLightDues() {
   };
 
   window.addEventListener('storage', (event) => {
-    if (event.key !== STORAGE_KEYS.gt) return;
-    syncGtFromShared();
+    if (event.key === STORAGE_KEYS.gt) {
+      syncGtFromShared();
+    }
+    if (event.key === STORAGE_KEYS.globalImoTransport) {
+      if (enforceLightDuesTypeFromImo(typeInput, tierBandInput, gtInput)) {
+        calculateLightDues();
+      }
+    }
   });
 
   window.addEventListener('pageshow', () => {
@@ -3247,19 +3826,17 @@ function getPortDuesCargoAmountKey() {
   return null;
 }
 
-function getPortDuesBunkeringAmountKey() {
-  if (isPortDuesSailingPage()) return STORAGE_KEYS.portDuesBunkeringAmountSailing;
-  if (isPortDuesPdaPage()) return STORAGE_KEYS.portDuesBunkeringAmountPda;
-  return null;
-}
-
 function getPortDuesCargoTypeConfig(type) {
-  return PORT_DUES_CARGO_TYPES[type] || PORT_DUES_CARGO_TYPES.bulkCargo;
+  return PORT_DUES_CARGO_TYPES[type] || PORT_DUES_CARGO_TYPES[PORT_DUES_DEFAULT_CARGO_TYPE];
 }
 
-function setPortDuesBunkeringState(toggleInput, quantityInput) {
-  if (!toggleInput || !quantityInput) return;
-  quantityInput.disabled = !toggleInput.checked;
+function enforcePortDuesCargoTypeFromImo(cargoTypeInput) {
+  if (!cargoTypeInput || (!isPortDuesPdaPage() && !isPortDuesSailingPage())) return false;
+  const globalImo = getGlobalImoTransportState();
+  const targetType = globalImo ? 'liquidCargo' : PORT_DUES_DEFAULT_CARGO_TYPE;
+  if (cargoTypeInput.value === targetType) return false;
+  cargoTypeInput.value = targetType;
+  return true;
 }
 
 function setPortDuesTerminalDischargedState(toggleInput, wrapInput, quantityInput) {
@@ -3269,30 +3846,19 @@ function setPortDuesTerminalDischargedState(toggleInput, wrapInput, quantityInpu
   quantityInput.disabled = !enabled;
 }
 
-function setPortDuesBunkeringResultVisibility(enabled) {
-  const bunkeringAmountInput = document.getElementById('portDuesBunkeringAmount');
-  const bunkeringRow = bunkeringAmountInput ? bunkeringAmountInput.closest('tr') : null;
-  if (!bunkeringRow) return;
-  bunkeringRow.style.display = enabled ? '' : 'none';
-}
-
 function savePortDuesState() {
   const stateKey = getPortDuesStateKey();
   if (!stateKey) return;
 
   const cargoQuantityInput = document.getElementById('portDuesCargoQuantity');
   const cargoTypeInput = document.getElementById('portDuesCargoType');
-  const bunkeringToggleInput = document.getElementById('portDuesBunkeringToggle');
-  const bunkeringQuantityInput = document.getElementById('portDuesBunkeringQuantity');
-  if (!cargoQuantityInput || !cargoTypeInput || !bunkeringToggleInput || !bunkeringQuantityInput) return;
+  if (!cargoQuantityInput || !cargoTypeInput) return;
   const terminalDischargedToggleInput = document.getElementById('portDuesTerminalDischargedToggle');
   const terminalDischargedQuantityInput = document.getElementById('portDuesTerminalDischargedQuantity');
 
   const state = {
     cargoQuantity: cargoQuantityInput.value,
-    cargoType: cargoTypeInput.value,
-    bunkeringEnabled: Boolean(bunkeringToggleInput.checked),
-    bunkeringQuantity: bunkeringQuantityInput.value
+    cargoType: cargoTypeInput.value
   };
   if (terminalDischargedToggleInput && terminalDischargedQuantityInput) {
     state.terminalDischargedEnabled = Boolean(terminalDischargedToggleInput.checked);
@@ -3304,8 +3870,6 @@ function savePortDuesState() {
 function restorePortDuesState(
   cargoQuantityInput,
   cargoTypeInput,
-  bunkeringToggleInput,
-  bunkeringQuantityInput,
   terminalDischargedToggleInput,
   terminalDischargedWrapInput,
   terminalDischargedQuantityInput
@@ -3325,8 +3889,6 @@ function restorePortDuesState(
         if (typeof state.cargoType === 'string' && PORT_DUES_CARGO_TYPES[state.cargoType]) {
           cargoTypeInput.value = state.cargoType;
         }
-        if (typeof state.bunkeringEnabled === 'boolean') bunkeringToggleInput.checked = state.bunkeringEnabled;
-        if (typeof state.bunkeringQuantity === 'string') bunkeringQuantityInput.value = state.bunkeringQuantity;
         if (terminalDischargedToggleInput && typeof state.terminalDischargedEnabled === 'boolean') {
           terminalDischargedToggleInput.checked = state.terminalDischargedEnabled;
         }
@@ -3345,30 +3907,23 @@ function restorePortDuesState(
   if (!PORT_DUES_CARGO_TYPES[cargoTypeInput.value]) {
     cargoTypeInput.value = 'bulkCargo';
   }
-  setPortDuesBunkeringState(bunkeringToggleInput, bunkeringQuantityInput);
   setPortDuesTerminalDischargedState(
     terminalDischargedToggleInput,
     terminalDischargedWrapInput,
     terminalDischargedQuantityInput
   );
-  setPortDuesBunkeringResultVisibility(Boolean(bunkeringToggleInput.checked));
 }
 
 function calculatePortDues() {
   const cargoQuantityInput = document.getElementById('portDuesCargoQuantity');
   const cargoTypeInput = document.getElementById('portDuesCargoType');
-  const bunkeringToggleInput = document.getElementById('portDuesBunkeringToggle');
-  const bunkeringQuantityInput = document.getElementById('portDuesBunkeringQuantity');
   const cargoTariffInput = document.getElementById('portDuesCargoTariff');
   const cargoAmountInput = document.getElementById('portDuesCargoAmount');
-  const bunkeringTariffInput = document.getElementById('portDuesBunkeringTariff');
-  const bunkeringAmountInput = document.getElementById('portDuesBunkeringAmount');
   const totalAmountInput = document.getElementById('portDuesTotalAmount');
   const terminalDischargedToggleInput = document.getElementById('portDuesTerminalDischargedToggle');
   const terminalDischargedQuantityInput = document.getElementById('portDuesTerminalDischargedQuantity');
   if (
-    !cargoQuantityInput || !cargoTypeInput || !bunkeringToggleInput || !bunkeringQuantityInput ||
-    !cargoTariffInput || !cargoAmountInput || !bunkeringTariffInput || !bunkeringAmountInput || !totalAmountInput
+    !cargoQuantityInput || !cargoTypeInput || !cargoTariffInput || !cargoAmountInput || !totalAmountInput
   ) return;
 
   const cargoType = getPortDuesCargoTypeConfig(cargoTypeInput.value);
@@ -3382,22 +3937,14 @@ function calculatePortDues() {
   const effectiveCargoQuantity = useTerminalDischargedQuantity ? terminalDischargedQuantity : cargoQuantity;
   const cargoAmount = effectiveCargoQuantity > 0 ? effectiveCargoQuantity * cargoType.rate : 0;
 
-  const bunkeringQuantity = parseMoneyValue(bunkeringQuantityInput.value);
-  const bunkeringAmount = bunkeringToggleInput.checked && bunkeringQuantity > 0 ? bunkeringQuantity * 0.3 : 0;
-
-  const totalAmount = cargoAmount + bunkeringAmount;
+  const totalAmount = cargoAmount;
   const amountKey = getPortDuesAmountKey();
   const cargoAmountKey = getPortDuesCargoAmountKey();
-  const bunkeringAmountKey = getPortDuesBunkeringAmountKey();
   if (amountKey) {
     safeStorageSet(amountKey, totalAmount.toFixed(2));
   }
   if (cargoAmountKey) {
     safeStorageSet(cargoAmountKey, cargoAmount.toFixed(2));
-  }
-  if (bunkeringAmountKey) {
-    if (bunkeringAmount > 0) safeStorageSet(bunkeringAmountKey, bunkeringAmount.toFixed(2));
-    else safeStorageRemove(bunkeringAmountKey);
   }
 
   const quantityRaw = cargoQuantityInput.value.trim();
@@ -3406,32 +3953,26 @@ function calculatePortDues() {
 
   cargoTariffInput.value = cargoType.label;
   cargoAmountInput.value = formatMoneyValue(cargoAmount);
-  bunkeringTariffInput.value = '0,30';
-  bunkeringAmountInput.value = formatMoneyValue(bunkeringAmount);
   totalAmountInput.value = formatMoneyValue(totalAmount);
-  setPortDuesBunkeringResultVisibility(Boolean(bunkeringToggleInput.checked));
   savePortDuesState();
 }
 
 function initPortDues() {
   const cargoQuantityInput = document.getElementById('portDuesCargoQuantity');
   const cargoTypeInput = document.getElementById('portDuesCargoType');
-  const bunkeringToggleInput = document.getElementById('portDuesBunkeringToggle');
-  const bunkeringQuantityInput = document.getElementById('portDuesBunkeringQuantity');
   const terminalDischargedToggleInput = document.getElementById('portDuesTerminalDischargedToggle');
   const terminalDischargedWrapInput = document.getElementById('portDuesTerminalDischargedWrap');
   const terminalDischargedQuantityInput = document.getElementById('portDuesTerminalDischargedQuantity');
-  if (!cargoQuantityInput || !cargoTypeInput || !bunkeringToggleInput || !bunkeringQuantityInput) return;
+  if (!cargoQuantityInput || !cargoTypeInput) return;
 
   restorePortDuesState(
     cargoQuantityInput,
     cargoTypeInput,
-    bunkeringToggleInput,
-    bunkeringQuantityInput,
     terminalDischargedToggleInput,
     terminalDischargedWrapInput,
     terminalDischargedQuantityInput
   );
+  enforcePortDuesCargoTypeFromImo(cargoTypeInput);
   calculatePortDues();
 
   cargoQuantityInput.addEventListener('input', calculatePortDues);
@@ -3447,18 +3988,240 @@ function initPortDues() {
     });
     terminalDischargedQuantityInput.addEventListener('input', calculatePortDues);
   }
-  bunkeringToggleInput.addEventListener('change', () => {
-    setPortDuesBunkeringState(bunkeringToggleInput, bunkeringQuantityInput);
-    calculatePortDues();
-  });
-  bunkeringQuantityInput.addEventListener('input', calculatePortDues);
 
   window.addEventListener('storage', (event) => {
-    if (event.key !== STORAGE_KEYS.quantity) return;
-    const nextQuantity = safeStorageGet(STORAGE_KEYS.quantity) || '';
-    if (cargoQuantityInput.value !== nextQuantity) {
-      cargoQuantityInput.value = nextQuantity;
-      calculatePortDues();
+    if (event.key === STORAGE_KEYS.quantity) {
+      const nextQuantity = safeStorageGet(STORAGE_KEYS.quantity) || '';
+      if (cargoQuantityInput.value !== nextQuantity) {
+        cargoQuantityInput.value = nextQuantity;
+        calculatePortDues();
+      }
+    }
+    if (event.key === STORAGE_KEYS.globalImoTransport) {
+      if (enforcePortDuesCargoTypeFromImo(cargoTypeInput)) {
+        calculatePortDues();
+      }
+    }
+  });
+}
+
+function isBunkeringPdaPage() {
+  return Boolean(document.body && document.body.classList.contains('page-bunkering-pda'));
+}
+
+function isBunkeringSailingPage() {
+  return Boolean(document.body && document.body.classList.contains('page-bunkering-sailing'));
+}
+
+function getBunkeringStateKey() {
+  if (isBunkeringSailingPage()) return STORAGE_KEYS.bunkeringStateSailing;
+  if (isBunkeringPdaPage()) return STORAGE_KEYS.bunkeringState;
+  return null;
+}
+
+function getBunkeringAmountKey() {
+  if (isBunkeringSailingPage()) return STORAGE_KEYS.portDuesBunkeringAmountSailing;
+  if (isBunkeringPdaPage()) return STORAGE_KEYS.portDuesBunkeringAmountPda;
+  return null;
+}
+
+function saveBunkeringState() {
+  const stateKey = getBunkeringStateKey();
+  if (!stateKey) return;
+  const quantityInput = document.getElementById('bunkeringQuantity');
+  if (!quantityInput) return;
+  safeStorageSet(stateKey, JSON.stringify({
+    quantity: quantityInput.value
+  }));
+}
+
+function restoreBunkeringState(quantityInput) {
+  if (!quantityInput) return;
+  const stateKey = getBunkeringStateKey();
+  if (!stateKey) return;
+  const raw = safeStorageGet(stateKey);
+  if (!raw) return;
+  try {
+    const state = JSON.parse(raw);
+    if (state && typeof state === 'object' && typeof state.quantity === 'string') {
+      quantityInput.value = state.quantity;
+    }
+  } catch (error) {
+    // ignore invalid saved state
+  }
+}
+
+function calculateBunkering() {
+  const quantityInput = document.getElementById('bunkeringQuantity');
+  const tariffInput = document.getElementById('bunkeringTariff');
+  const amountInput = document.getElementById('bunkeringAmount');
+  if (!quantityInput || !tariffInput || !amountInput) return;
+
+  const quantity = parseMoneyValue(quantityInput.value);
+  const amount = quantity > 0 ? quantity * 0.3 : 0;
+
+  const amountKey = getBunkeringAmountKey();
+  if (amountKey) safeStorageSet(amountKey, amount.toFixed(2));
+
+  tariffInput.value = '0,30';
+  amountInput.value = formatMoneyValue(amount);
+  saveBunkeringState();
+}
+
+function initBunkering() {
+  const quantityInput = document.getElementById('bunkeringQuantity');
+  if (!quantityInput) return;
+
+  restoreBunkeringState(quantityInput);
+  calculateBunkering();
+
+  quantityInput.addEventListener('input', calculateBunkering);
+
+  window.addEventListener('storage', (event) => {
+    const stateKey = getBunkeringStateKey();
+    if (!stateKey || event.key !== stateKey) return;
+    restoreBunkeringState(quantityInput);
+    calculateBunkering();
+  });
+}
+
+function isBerthageAnchoragePdaPage() {
+  return Boolean(document.body && document.body.classList.contains('page-berthage-anchorage-pda'));
+}
+
+function isBerthageAnchorageSailingPage() {
+  return Boolean(document.body && document.body.classList.contains('page-berthage-anchorage-sailing'));
+}
+
+function getBerthageStateKey() {
+  if (isBerthageAnchorageSailingPage()) return STORAGE_KEYS.berthageStateSailing;
+  if (isBerthageAnchoragePdaPage()) return STORAGE_KEYS.berthageState;
+  return null;
+}
+
+function getBerthageAmountKey() {
+  if (isBerthageAnchorageSailingPage()) return STORAGE_KEYS.berthageAmountSailing;
+  if (isBerthageAnchoragePdaPage()) return STORAGE_KEYS.berthageAmountPda;
+  return null;
+}
+
+function setBerthageDaysInputState(toggleInput, daysInput) {
+  if (!toggleInput || !daysInput) return;
+  daysInput.disabled = !toggleInput.checked;
+}
+
+function saveBerthageState() {
+  const stateKey = getBerthageStateKey();
+  if (!stateKey) return;
+  const berthageEnabled = document.getElementById('berthageEnabled');
+  const berthageDays = document.getElementById('berthageDays');
+  const anchorageEnabled = document.getElementById('anchorageEnabled');
+  const anchorageDays = document.getElementById('anchorageDays');
+  if (!berthageEnabled || !berthageDays || !anchorageEnabled || !anchorageDays) return;
+  safeStorageSet(stateKey, JSON.stringify({
+    berthageEnabled: Boolean(berthageEnabled.checked),
+    berthageDays: berthageDays.value,
+    anchorageEnabled: Boolean(anchorageEnabled.checked),
+    anchorageDays: anchorageDays.value
+  }));
+}
+
+function restoreBerthageState() {
+  const stateKey = getBerthageStateKey();
+  if (!stateKey) return;
+  const berthageEnabled = document.getElementById('berthageEnabled');
+  const berthageDays = document.getElementById('berthageDays');
+  const anchorageEnabled = document.getElementById('anchorageEnabled');
+  const anchorageDays = document.getElementById('anchorageDays');
+  if (!berthageEnabled || !berthageDays || !anchorageEnabled || !anchorageDays) return;
+  const raw = safeStorageGet(stateKey);
+  if (!raw) return;
+  try {
+    const state = JSON.parse(raw);
+    if (!state || typeof state !== 'object') return;
+    if (typeof state.berthageEnabled === 'boolean') berthageEnabled.checked = state.berthageEnabled;
+    if (typeof state.berthageDays === 'string') berthageDays.value = state.berthageDays;
+    if (typeof state.anchorageEnabled === 'boolean') anchorageEnabled.checked = state.anchorageEnabled;
+    if (typeof state.anchorageDays === 'string') anchorageDays.value = state.anchorageDays;
+  } catch (error) {
+    // ignore invalid saved state
+  }
+}
+
+function calculateBerthageAnchorage() {
+  const lengthInput = document.getElementById('berthageLengthOverall');
+  const berthageEnabled = document.getElementById('berthageEnabled');
+  const berthageDays = document.getElementById('berthageDays');
+  const anchorageEnabled = document.getElementById('anchorageEnabled');
+  const anchorageDays = document.getElementById('anchorageDays');
+  const berthageTariff = document.getElementById('berthageTariff');
+  const berthageDaysValue = document.getElementById('berthageDaysValue');
+  const berthageAmount = document.getElementById('berthageAmount');
+  const anchorageTariff = document.getElementById('anchorageTariff');
+  const anchorageDaysValue = document.getElementById('anchorageDaysValue');
+  const anchorageAmount = document.getElementById('anchorageAmount');
+  if (
+    !lengthInput ||
+    !berthageEnabled || !berthageDays || !anchorageEnabled || !anchorageDays ||
+    !berthageTariff || !berthageDaysValue || !berthageAmount ||
+    !anchorageTariff || !anchorageDaysValue || !anchorageAmount
+  ) return;
+
+  setBerthageDaysInputState(berthageEnabled, berthageDays);
+  setBerthageDaysInputState(anchorageEnabled, anchorageDays);
+
+  const rawLength = getCurrentLengthOverallRawValue();
+  if (lengthInput.value !== rawLength) lengthInput.value = rawLength;
+  const lengthValue = parseMoneyValue(rawLength);
+
+  const berthageDaysValueRaw = parseMoneyValue(berthageDays.value);
+  const anchorageDaysValueRaw = parseMoneyValue(anchorageDays.value);
+
+  const berthageCalcAmount = berthageEnabled.checked && lengthValue > 0 && berthageDaysValueRaw > 0
+    ? lengthValue * BERTHAGE_TARIFF_RATE * berthageDaysValueRaw
+    : 0;
+  const anchorageCalcAmount = anchorageEnabled.checked && lengthValue > 0 && anchorageDaysValueRaw > 0
+    ? lengthValue * ANCHORAGE_TARIFF_RATE * anchorageDaysValueRaw
+    : 0;
+  const totalAmount = berthageCalcAmount + anchorageCalcAmount;
+
+  berthageTariff.value = formatMoneyValue(BERTHAGE_TARIFF_RATE);
+  berthageDaysValue.value = berthageEnabled.checked ? (berthageDays.value.trim() || '0') : '0';
+  berthageAmount.value = formatMoneyValue(berthageCalcAmount);
+  anchorageTariff.value = formatMoneyValue(ANCHORAGE_TARIFF_RATE);
+  anchorageDaysValue.value = anchorageEnabled.checked ? (anchorageDays.value.trim() || '0') : '0';
+  anchorageAmount.value = formatMoneyValue(anchorageCalcAmount);
+
+  const amountKey = getBerthageAmountKey();
+  if (amountKey) safeStorageSet(amountKey, totalAmount.toFixed(2));
+  saveBerthageState();
+}
+
+function initBerthageAnchorage() {
+  const lengthInput = document.getElementById('berthageLengthOverall');
+  const berthageEnabled = document.getElementById('berthageEnabled');
+  const berthageDays = document.getElementById('berthageDays');
+  const anchorageEnabled = document.getElementById('anchorageEnabled');
+  const anchorageDays = document.getElementById('anchorageDays');
+  if (!lengthInput || !berthageEnabled || !berthageDays || !anchorageEnabled || !anchorageDays) return;
+
+  restoreBerthageState();
+  calculateBerthageAnchorage();
+
+  berthageEnabled.addEventListener('change', calculateBerthageAnchorage);
+  berthageDays.addEventListener('input', calculateBerthageAnchorage);
+  anchorageEnabled.addEventListener('change', calculateBerthageAnchorage);
+  anchorageDays.addEventListener('input', calculateBerthageAnchorage);
+
+  window.addEventListener('storage', (event) => {
+    const stateKey = getBerthageStateKey();
+    if (stateKey && event.key === stateKey) {
+      restoreBerthageState();
+      calculateBerthageAnchorage();
+      return;
+    }
+    if (event.key === STORAGE_KEYS.indexState) {
+      calculateBerthageAnchorage();
     }
   });
 }
@@ -4058,6 +4821,8 @@ function setPilotageExtrasState(id, defaultToChecked = false) {
   const withoutPropulsionInput = document.getElementById(`pilotageWithoutPropulsion70_${id}`);
   const relocationRow = document.getElementById(`pilotageShipRelocationRow_${id}`);
   const relocationInput = document.getElementById(`pilotageShipRelocation70_${id}`);
+  const toggleBtn = document.getElementById(`pilotageExtrasToggle_${id}`);
+  const toggleLabel = toggleBtn ? toggleBtn.querySelector('.pilotage-extras-label') : null;
   if (!opInput || !extrasEnabledInput || !extrasWrap || !additionalPilotInput || !withoutPropulsionInput || !relocationRow || !relocationInput) return;
 
   const isShifting = normalizePilotageOperation(opInput.value) === 'shifting';
@@ -4065,6 +4830,8 @@ function setPilotageExtrasState(id, defaultToChecked = false) {
   extrasWrap.style.display = extrasEnabled ? '' : 'none';
   additionalPilotInput.disabled = !extrasEnabled;
   withoutPropulsionInput.disabled = !extrasEnabled;
+  if (toggleBtn) toggleBtn.setAttribute('aria-expanded', extrasEnabled ? 'true' : 'false');
+  if (toggleLabel) toggleLabel.textContent = extrasEnabled ? 'Less' : 'More';
 
   relocationRow.style.display = isShifting ? '' : 'none';
   relocationInput.disabled = !extrasEnabled || !isShifting;
@@ -4158,8 +4925,13 @@ function addPilotageCard(initialState = {}) {
         <option value="1"${normalizedOvertimeRate === 1 ? ' selected' : ''}>100% - Holidays</option>
       </select>
 
-      <div class="section-title">Extras</div>
-      <label class="checkbox"><input id="pilotageExtrasEnabled_${id}" type="checkbox"${state.extrasEnabled ? ' checked' : ''} /> Show extra cases</label>
+      <div class="pilotage-extras-header">
+        <button type="button" class="pilotage-extras-toggle" id="pilotageExtrasToggle_${id}" aria-expanded="${state.extrasEnabled ? 'true' : 'false'}" aria-controls="pilotageExtrasWrap_${id}">
+          <span class="pilotage-extras-label">${state.extrasEnabled ? 'Less' : 'More'}</span>
+          <span class="pilotage-extras-chevron" aria-hidden="true"></span>
+        </button>
+      </div>
+      <input id="pilotageExtrasEnabled_${id}" type="checkbox"${state.extrasEnabled ? ' checked' : ''} hidden />
       <div id="pilotageExtrasWrap_${id}">
         <div id="pilotageShipRelocationRow_${id}">
           <label class="checkbox"><input id="pilotageShipRelocation70_${id}" type="checkbox"${state.shipRelocation70 ? ' checked' : ''} /> 70% ship relocation (shifting)</label>
@@ -4354,16 +5126,23 @@ function initPilotage() {
       setPilotageExtrasState(id, true);
       updatePilotageCardTitles();
     }
-    if (target.id && target.id.startsWith('pilotageExtrasEnabled_')) {
-      const id = target.id.replace('pilotageExtrasEnabled_', '');
-      setPilotageExtrasState(id, false);
-    }
     if (target.id && target.id.startsWith('pilotageImo_')) {
       syncPilotageImoMaster();
       if (pilotageImoMaster && !pilotageImoMaster.indeterminate) {
         setGlobalImoTransportState(Boolean(pilotageImoMaster.checked));
       }
     }
+    calculatePilotage();
+  });
+
+  cardsWrap.addEventListener('click', (event) => {
+    const toggle = event.target.closest('.pilotage-extras-toggle');
+    if (!toggle) return;
+    const id = toggle.id.replace('pilotageExtrasToggle_', '');
+    const checkbox = document.getElementById(`pilotageExtrasEnabled_${id}`);
+    if (!checkbox) return;
+    checkbox.checked = !checkbox.checked;
+    setPilotageExtrasState(id, false);
     calculatePilotage();
   });
 
@@ -4631,6 +5410,8 @@ function setMooringAdditionsState(id) {
   const manFields = document.getElementById(`mooringManFields_${id}`);
   const manHoursInput = document.getElementById(`mooringManHours_${id}`);
   const manPersonsInput = document.getElementById(`mooringManPersons_${id}`);
+  const toggleBtn = document.getElementById(`mooringAdditionsToggle_${id}`);
+  const toggleLabel = toggleBtn ? toggleBtn.querySelector('.mooring-additions-label') : null;
   if (
     !additionsEnabledInput || !additionsWrap || !boatEnabledInput || !boatFields || !boatHoursInput ||
     !manEnabledInput || !manFields || !manHoursInput || !manPersonsInput
@@ -4640,6 +5421,8 @@ function setMooringAdditionsState(id) {
   additionsWrap.style.display = additionsEnabled ? '' : 'none';
   boatEnabledInput.disabled = !additionsEnabled;
   manEnabledInput.disabled = !additionsEnabled;
+  if (toggleBtn) toggleBtn.setAttribute('aria-expanded', additionsEnabled ? 'true' : 'false');
+  if (toggleLabel) toggleLabel.textContent = additionsEnabled ? 'Less' : 'More';
   setMooringAddonState(additionsEnabled && Boolean(boatEnabledInput.checked), boatFields, boatHoursInput);
   setMooringAddonState(additionsEnabled && Boolean(manEnabledInput.checked), manFields, manHoursInput, manPersonsInput);
 }
@@ -4725,16 +5508,21 @@ function addMooringCard(initialState = {}) {
         <option value="50"${overtimeRate === '50' ? ' selected' : ''}>50% - Holidays</option>
       </select>
 
-      <div class="section-title">Additions</div>
-      <label class="checkbox"><input id="mooringAdditionsEnabled_${id}" type="checkbox"${additionsEnabled ? ' checked' : ''} /> Show additions options</label>
+      <div class="mooring-additions-header">
+        <button type="button" class="mooring-additions-toggle" id="mooringAdditionsToggle_${id}" aria-expanded="${additionsEnabled ? 'true' : 'false'}" aria-controls="mooringAdditionsWrap_${id}">
+          <span class="mooring-additions-label">${additionsEnabled ? 'Less' : 'More'}</span>
+          <span class="mooring-additions-chevron" aria-hidden="true"></span>
+        </button>
+      </div>
+      <input id="mooringAdditionsEnabled_${id}" type="checkbox"${additionsEnabled ? ' checked' : ''} hidden />
       <div id="mooringAdditionsWrap_${id}">
-        <label class="checkbox"><input id="mooringBoatEnabled_${id}" type="checkbox" /> Use mooring boat (125 EUR / hour)</label>
+        <label class="checkbox"><input id="mooringBoatEnabled_${id}" type="checkbox" /> Mooring boat (125 EUR / hour)</label>
         <div id="mooringBoatFields_${id}">
           <label>Boat Hours</label>
           <input id="mooringBoatHours_${id}" type="number" min="0" step="0.25" placeholder="0" />
         </div>
 
-        <label class="checkbox"><input id="mooringManEnabled_${id}" type="checkbox" /> Use additional mooring man (25 EUR / hour)</label>
+        <label class="checkbox"><input id="mooringManEnabled_${id}" type="checkbox" /> Additional mooring man (25 EUR / hour)</label>
         <div id="mooringManFields_${id}">
           <div class="row">
             <div>
@@ -4950,10 +5738,6 @@ function initMooring() {
     if (target.id && target.id.startsWith('mooringOp_')) {
       updateMooringCardTitles();
     }
-    if (target.id && target.id.startsWith('mooringAdditionsEnabled_')) {
-      const id = target.id.replace('mooringAdditionsEnabled_', '');
-      setMooringAdditionsState(id);
-    }
     if (target.id && target.id.startsWith('mooringBoatEnabled_')) {
       const id = target.id.replace('mooringBoatEnabled_', '');
       setMooringAdditionsState(id);
@@ -4962,6 +5746,17 @@ function initMooring() {
       const id = target.id.replace('mooringManEnabled_', '');
       setMooringAdditionsState(id);
     }
+    calculateMooring();
+  });
+
+  cardsWrap.addEventListener('click', (event) => {
+    const toggle = event.target.closest('.mooring-additions-toggle');
+    if (!toggle) return;
+    const id = toggle.id.replace('mooringAdditionsToggle_', '');
+    const checkbox = document.getElementById(`mooringAdditionsEnabled_${id}`);
+    if (!checkbox) return;
+    checkbox.checked = !checkbox.checked;
+    setMooringAdditionsState(id);
     calculateMooring();
   });
 
@@ -4990,6 +5785,16 @@ const MIN_VOYAGE = 1;
 const MIN_ASSIST = 0.5;
 let imoMaster = null;
 let linesMaster = null;
+let arrivalOtMaster = null;
+let arrivalOtSunday = null;
+let departureOtMaster = null;
+let departureOtSunday = null;
+let discountEnabled = null;
+let discountPercentInput = null;
+let discountFieldWrap = null;
+const TUG_OT_RATE_NORMAL = '0';
+const TUG_OT_RATE_25 = '0.25';
+const TUG_OT_RATE_50 = '0.50';
 
 function getTariffFromGT(gt) {
   if (!gt || gt <= 0) return 0;
@@ -5011,7 +5816,7 @@ function addTug() {
   if (!tugCards) return;
   tugCount++;
   tugCards.insertAdjacentHTML('beforeend', `
-    <div class="card" id="tug_${tugCount}">
+    <div class="card" id="tug_${tugCount}" data-operation="arrival">
       <div class="tug-header">
         <button class="icon-btn" onclick="removeTug(${tugCount})" aria-label="Remove tugboat"><img src="assets/icons/trash.svg" alt="Remove"></button>
         <h3 class="tug-title">Tugboat</h3>
@@ -5058,6 +5863,7 @@ function addTug() {
       </select>
 
       <div class="tug-total" id="tugTotal_${tugCount}">Tug total: €0.00</div>
+      <div class="tug-breakdown-print" id="tugBreakdown_${tugCount}"></div>
     </div>
   `);
 
@@ -5067,6 +5873,7 @@ function addTug() {
   applyLinesMaster();
   syncImoMaster();
   syncLinesMaster();
+  applyOvertimeMastersToCard(tugCount);
   updateTugTitles();
   calculate();
 }
@@ -5103,6 +5910,7 @@ function duplicateTug(id) {
     if (!from || !to) continue;
     to[prop] = from[prop];
   }
+  applyKwVoyageRule(newId);
 
   syncImoMaster();
   syncLinesMaster();
@@ -5234,6 +6042,88 @@ function syncLinesMaster() {
   }
 }
 
+function getMasterOvertimeRate(masterInput, sundayInput) {
+  if (!masterInput || !masterInput.checked) return TUG_OT_RATE_NORMAL;
+  if (sundayInput && sundayInput.checked) return TUG_OT_RATE_50;
+  return TUG_OT_RATE_25;
+}
+
+function applyOvertimeMaster(operation, rate, onlyId = null) {
+  for (let i = 1; i <= tugCount; i++) {
+    if (onlyId && i !== onlyId) continue;
+    const opValue = document.getElementById(`op_${i}`)?.value;
+    if (!opValue) continue;
+    const op = opValue === 'departure' ? 'departure' : 'arrival';
+    if (op !== operation) continue;
+    const voyOt = document.getElementById(`voy_ot_${i}`);
+    const assistOt = document.getElementById(`assist_ot_${i}`);
+    if (voyOt) voyOt.value = rate;
+    if (assistOt) assistOt.value = rate;
+  }
+}
+
+function applyOvertimeMastersToCard(id) {
+  const opValue = document.getElementById(`op_${id}`)?.value;
+  if (!opValue) return;
+  const op = opValue === 'departure' ? 'departure' : 'arrival';
+  if (op === 'departure') {
+    const rate = getMasterOvertimeRate(departureOtMaster, departureOtSunday);
+    applyOvertimeMaster('departure', rate, id);
+    return;
+  }
+  const rate = getMasterOvertimeRate(arrivalOtMaster, arrivalOtSunday);
+  applyOvertimeMaster('arrival', rate, id);
+}
+
+function applyKwVoyageRule(id) {
+  const kwCheckbox = document.getElementById(`kw_${id}`);
+  const voyageSelect = document.getElementById(`voyage_${id}`);
+  if (!voyageSelect) return;
+  if (kwCheckbox && kwCheckbox.checked) {
+    voyageSelect.value = '1.5';
+  } else {
+    voyageSelect.value = '1';
+  }
+}
+
+function updateOvertimeMasterVisibility() {
+  const arrivalWrap = document.getElementById('arrivalOtSundayWrap');
+  if (arrivalWrap) arrivalWrap.hidden = !arrivalOtMaster?.checked;
+  if (!arrivalOtMaster?.checked && arrivalOtSunday) arrivalOtSunday.checked = false;
+  const departureWrap = document.getElementById('departureOtSundayWrap');
+  if (departureWrap) departureWrap.hidden = !departureOtMaster?.checked;
+  if (!departureOtMaster?.checked && departureOtSunday) departureOtSunday.checked = false;
+}
+
+function updateDiscountEnabledState() {
+  if (!discountPercentInput) return;
+  const isEnabled = Boolean(discountEnabled && discountEnabled.checked);
+  if (isEnabled) {
+    discountPercentInput.disabled = false;
+    if (discountFieldWrap) discountFieldWrap.hidden = false;
+    return;
+  }
+  discountPercentInput.disabled = true;
+  if (discountFieldWrap) discountFieldWrap.hidden = true;
+}
+
+function getApprovedDiscountPercent() {
+  if (!discountEnabled || !discountEnabled.checked) return 0;
+  const raw = discountPercentInput ? discountPercentInput.value : '';
+  const percent = parsePercentValue(raw);
+  if (!Number.isFinite(percent) || percent <= 0) return 0;
+  return Math.min(percent, 100);
+}
+
+function formatDiscountLabel(percent) {
+  if (!Number.isFinite(percent) || percent <= 0) return '';
+  const rounded = Math.round(percent * 1000) / 1000;
+  let text = rounded.toFixed(3);
+  text = text.replace(/\.?0+$/, '');
+  return text;
+}
+
+
 function updateTugTitles() {
   const cards = document.querySelectorAll('#tugCards .card');
   const operations = Array.from(cards).map((card) => {
@@ -5251,15 +6141,18 @@ function updateTugTitles() {
   cards.forEach(card => {
     const id = card.id.split('_')[1];
     const op = document.getElementById(`op_${id}`)?.value;
+    card.setAttribute('data-operation', op === 'departure' ? 'departure' : 'arrival');
     const title = card.querySelector('.tug-title');
     if (!title) return;
 
     if (op === 'arrival') {
       arrivalIndex++;
+      card.style.setProperty('--print-row', String(arrivalIndex));
       const prefix = operationCounts.arrival > 1 ? `${arrivalIndex}${getOrdinal(arrivalIndex)} ` : '';
       title.innerText = `${prefix}Tugboat on arrival`;
     } else {
       departureIndex++;
+      card.style.setProperty('--print-row', String(departureIndex));
       const prefix = operationCounts.departure > 1 ? `${departureIndex}${getOrdinal(departureIndex)} ` : '';
       title.innerText = `${prefix}Tugboat on departure`;
     }
@@ -5273,6 +6166,120 @@ function getOrdinal(n) {
   return 'th';
 }
 
+function getSelectedOptionText(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return '';
+  const option = select.options[select.selectedIndex];
+  return option ? String(option.textContent || '').trim() : '';
+}
+
+function getTugCardCalculation(id, tariff) {
+  const opSelect = document.getElementById(`op_${id}`);
+  if (!opSelect) return null;
+
+  let voyage = Number(document.getElementById(`voyage_${id}`)?.value);
+  let assist = Number(document.getElementById(`assist_${id}`)?.value);
+  const operation = opSelect.value === 'departure' ? 'departure' : 'arrival';
+
+  voyage = Math.max(voyage, MIN_VOYAGE);
+  assist = Math.max(assist, MIN_ASSIST);
+
+  const voyageOT = Number(document.getElementById(`voy_ot_${id}`)?.value) || 0;
+  const assistOT = Number(document.getElementById(`assist_ot_${id}`)?.value) || 0;
+  const imoEnabled = Boolean(document.getElementById(`imo_${id}`)?.checked);
+  const linesEnabled = Boolean(document.getElementById(`lines_${id}`)?.checked);
+  const kwEnabled = Boolean(document.getElementById(`kw_${id}`)?.checked);
+
+  const voyageBase = tariff * voyage;
+  const voyageOvertimeCharge = voyageBase * voyageOT;
+  const assistBase = tariff * assist;
+  const assistOvertimeCharge = assistBase * assistOT;
+  const imoCharge = imoEnabled ? (assistBase * 0.20) : 0;
+  const linesCharge = linesEnabled ? (assistBase * 0.15) : 0;
+  const kwCharge = kwEnabled ? (assistBase * 0.30) : 0;
+
+  const total = (
+    voyageBase +
+    voyageOvertimeCharge +
+    assistBase +
+    assistOvertimeCharge +
+    imoCharge +
+    linesCharge +
+    kwCharge
+  );
+
+  return {
+    id,
+    operation,
+    voyage,
+    assist,
+    voyageOT,
+    assistOT,
+    voyageBase,
+    voyageOvertimeCharge,
+    assistBase,
+    assistOvertimeCharge,
+    imoCharge,
+    linesCharge,
+    kwCharge,
+    total
+  };
+}
+
+function renderTugPrintBreakdown(id, calc) {
+  const container = document.getElementById(`tugBreakdown_${id}`);
+  if (!container) return;
+
+  if (!calc || !Number.isFinite(calc.total) || calc.total <= 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const card = document.getElementById(`tug_${id}`);
+  const cardTitle = card?.querySelector('.tug-title')?.textContent?.trim() || `Tugboat ${id}`;
+  const voyageLabel = getSelectedOptionText(`voyage_${id}`) || `${calc.voyage} hour`;
+  const assistLabel = getSelectedOptionText(`assist_${id}`) || `${calc.assist} hour`;
+  const voyageOtLabel = getSelectedOptionText(`voy_ot_${id}`) || '';
+  const assistOtLabel = getSelectedOptionText(`assist_ot_${id}`) || '';
+
+  const rows = [
+    { amount: calc.voyageBase, label: `Voyage base to base (${voyageLabel})` },
+    { amount: calc.assistBase, label: `Assistance (${assistLabel})` }
+  ];
+
+  if (calc.linesCharge > 0) rows.push({ amount: calc.linesCharge, label: '15% usage of tug lines' });
+  if (calc.imoCharge > 0) rows.push({ amount: calc.imoCharge, label: '20% towing of ships transporting inflammable materials (IMO Code Classes I-III)' });
+  if (calc.kwCharge > 0) rows.push({ amount: calc.kwCharge, label: '30% for the work of the tug above 2000 kW' });
+  if (calc.voyageOvertimeCharge > 0) rows.push({ amount: calc.voyageOvertimeCharge, label: `Voyage overtime (${voyageOtLabel})` });
+  if (calc.assistOvertimeCharge > 0) rows.push({ amount: calc.assistOvertimeCharge, label: `Assistance overtime (${assistOtLabel})` });
+
+  const rowsHtml = rows.map((row) => `
+    <tr>
+      <td class="amount">${escapeHtml(formatMoneyValue(row.amount))}</td>
+      <td class="currency">EUR</td>
+      <td class="label">${escapeHtml(row.label)}</td>
+    </tr>
+  `).join('');
+
+  container.innerHTML = `
+    <table class="tug-breakdown-print-table">
+      <thead>
+        <tr>
+          <th colspan="3">${escapeHtml(cardTitle)}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+        <tr class="total-row">
+          <td class="amount">${escapeHtml(formatMoneyValue(calc.total))}</td>
+          <td class="currency">EUR</td>
+          <td class="label">Total</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+}
+
 function calculate() {
   saveTugsState();
   const tariffInput = document.getElementById('tariff');
@@ -5281,6 +6288,12 @@ function calculate() {
 
   const tariff = Number(tariffInput.value) || 0;
   if (!tariff) {
+    for (let i = 1; i <= tugCount; i++) {
+      if (!document.getElementById(`tug_${i}`)) continue;
+      const totalEl = document.getElementById(`tugTotal_${i}`);
+      if (totalEl) totalEl.innerText = 'Tug total: €0.00';
+      renderTugPrintBreakdown(i, null);
+    }
     final.style.display = 'none';
     const keys = getTugStorageKeys(isSailingTugsPage());
     safeStorageSet(keys.towageArrivalCount, 0);
@@ -5292,37 +6305,27 @@ function calculate() {
   let departureTotal = 0;
   let arrivalCount = 0;
   let departureCount = 0;
+  const discountPercent = getApprovedDiscountPercent();
+  const discountFactor = discountPercent > 0 ? (1 - (discountPercent / 100)) : 1;
+  const discountLabel = formatDiscountLabel(discountPercent);
+  const discountSuffix = discountLabel ? ` (discounted ${discountLabel}%)` : '';
 
   for (let i = 1; i <= tugCount; i++) {
     if (!document.getElementById(`tug_${i}`)) continue;
 
-    let voyage = Number(document.getElementById(`voyage_${i}`).value);
-    let assist = Number(document.getElementById(`assist_${i}`).value);
-    const op = document.getElementById(`op_${i}`).value;
+    const calc = getTugCardCalculation(i, tariff);
+    if (!calc) continue;
 
-    if (op === 'arrival') arrivalCount += 1;
+    if (calc.operation === 'arrival') arrivalCount += 1;
     else departureCount += 1;
 
-    voyage = Math.max(voyage, MIN_VOYAGE);
-    assist = Math.max(assist, MIN_ASSIST);
+    const cardTotal = calc.total * discountFactor;
+    const cardTotalText = Number.isFinite(cardTotal) ? cardTotal.toFixed(2) : '0.00';
+    document.getElementById(`tugTotal_${i}`).innerText = `Tug total: €${cardTotalText}${discountSuffix}`;
+    renderTugPrintBreakdown(i, calc);
 
-    const voyageOT = Number(document.getElementById(`voy_ot_${i}`).value);
-    const assistOT = Number(document.getElementById(`assist_ot_${i}`).value);
-
-    const voyageCost = tariff * voyage * (1 + voyageOT);
-
-    let assistMultiplier = 1 + assistOT;
-    if (document.getElementById(`imo_${i}`).checked) assistMultiplier += 0.20;
-    if (document.getElementById(`lines_${i}`).checked) assistMultiplier += 0.15;
-    if (document.getElementById(`kw_${i}`).checked) assistMultiplier += 0.30;
-
-    const assistCost = tariff * assist * assistMultiplier;
-    const total = voyageCost + assistCost;
-
-    document.getElementById(`tugTotal_${i}`).innerText = `Tug total: €${total.toFixed(2)}`;
-
-    if (op === 'arrival') arrivalTotal += total;
-    else departureTotal += total;
+    if (calc.operation === 'arrival') arrivalTotal += calc.total;
+    else departureTotal += calc.total;
   }
 
   if (arrivalTotal === 0 && departureTotal === 0) {
@@ -5333,16 +6336,24 @@ function calculate() {
     return;
   }
 
+  const discountedArrival = arrivalTotal * discountFactor;
+  const discountedDeparture = departureTotal * discountFactor;
+  const discountedGrand = discountedArrival + discountedDeparture;
+
+  const discountRow = discountLabel
+    ? `<div class="summary-discount print-only">Approved discount: ${discountLabel}%</div>`
+    : '';
   final.style.display = 'block';
   final.innerHTML = `
+    ${discountRow}
     <div class="summary">
-      <div><strong>Arrival total</strong><br>€${arrivalTotal.toFixed(2)}</div>
-      <div><strong>Departure total</strong><br>€${departureTotal.toFixed(2)}</div>
-      <div><strong>Grand total</strong><br>€${(arrivalTotal + departureTotal).toFixed(2)}</div>
+      <div><strong>Arrival total${discountSuffix}</strong><br>€${discountedArrival.toFixed(2)}</div>
+      <div><strong>Departure total${discountSuffix}</strong><br>€${discountedDeparture.toFixed(2)}</div>
+      <div><strong>Grand total${discountSuffix}</strong><br>€${discountedGrand.toFixed(2)}</div>
     </div>
   `;
 
-  const grandTotal = arrivalTotal + departureTotal;
+  const grandTotal = discountedGrand;
   if (Number.isFinite(grandTotal)) {
     const keys = getTugStorageKeys(isSailingTugsPage());
     safeStorageSet(keys.towageTotal, grandTotal.toFixed(2));
@@ -5414,7 +6425,14 @@ function initTugs() {
   }
 
   document.addEventListener('input', calculate);
-  document.addEventListener('change', () => {
+  document.addEventListener('change', (event) => {
+    const target = event.target;
+    if (target && target.id && target.id.startsWith('op_')) {
+      const id = Number(target.id.replace('op_', ''));
+      if (Number.isFinite(id)) {
+        applyOvertimeMastersToCard(id);
+      }
+    }
     updateTugTitles();
     calculate();
   });
@@ -5428,6 +6446,26 @@ function initTugs() {
 
   imoMaster = document.getElementById('imoMaster');
   linesMaster = document.getElementById('linesMaster');
+  arrivalOtMaster = document.getElementById('arrivalOtMaster');
+  arrivalOtSunday = document.getElementById('arrivalOtSunday');
+  departureOtMaster = document.getElementById('departureOtMaster');
+  departureOtSunday = document.getElementById('departureOtSunday');
+  discountEnabled = document.getElementById('discountEnabled');
+  discountPercentInput = document.getElementById('discountPercent');
+  discountFieldWrap = document.querySelector('.tug-discount-field');
+  const tugOptionsToggle = document.getElementById('tugOptionsToggle');
+  const tugOptionsBody = document.getElementById('tugOptionsBody');
+  if (tugOptionsToggle && tugOptionsBody) {
+    const setOptionsExpanded = (expanded) => {
+      tugOptionsBody.hidden = !expanded;
+      tugOptionsToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    };
+    tugOptionsToggle.addEventListener('click', () => {
+      const isExpanded = tugOptionsToggle.getAttribute('aria-expanded') === 'true';
+      setOptionsExpanded(!isExpanded);
+    });
+    setOptionsExpanded(false);
+  }
 
   if (imoMaster) {
     imoMaster.addEventListener('change', () => {
@@ -5446,6 +6484,49 @@ function initTugs() {
     });
   }
 
+  if (arrivalOtMaster) {
+    arrivalOtMaster.addEventListener('change', () => {
+      updateOvertimeMasterVisibility();
+      const rate = getMasterOvertimeRate(arrivalOtMaster, arrivalOtSunday);
+      applyOvertimeMaster('arrival', rate);
+      calculate();
+    });
+  }
+  if (arrivalOtSunday) {
+    arrivalOtSunday.addEventListener('change', () => {
+      const rate = getMasterOvertimeRate(arrivalOtMaster, arrivalOtSunday);
+      applyOvertimeMaster('arrival', rate);
+      calculate();
+    });
+  }
+  if (departureOtMaster) {
+    departureOtMaster.addEventListener('change', () => {
+      updateOvertimeMasterVisibility();
+      const rate = getMasterOvertimeRate(departureOtMaster, departureOtSunday);
+      applyOvertimeMaster('departure', rate);
+      calculate();
+    });
+  }
+  if (departureOtSunday) {
+    departureOtSunday.addEventListener('change', () => {
+      const rate = getMasterOvertimeRate(departureOtMaster, departureOtSunday);
+      applyOvertimeMaster('departure', rate);
+      calculate();
+    });
+  }
+
+  if (discountEnabled) {
+    discountEnabled.addEventListener('change', () => {
+      updateDiscountEnabledState();
+      calculate();
+    });
+  }
+  if (discountPercentInput) {
+    discountPercentInput.addEventListener('input', () => {
+      calculate();
+    });
+  }
+
   document.addEventListener('change', (event) => {
     const target = event.target;
     if (target && target.id && target.id.startsWith('imo_')) {
@@ -5457,10 +6538,18 @@ function initTugs() {
     if (target && target.id && target.id.startsWith('lines_')) {
       syncLinesMaster();
     }
+    if (target && target.id && target.id.startsWith('kw_')) {
+      const id = Number(target.id.replace('kw_', ''));
+      if (Number.isFinite(id)) {
+        applyKwVoyageRule(id);
+      }
+    }
   });
 
   restoreTugsState();
   syncTugImoWithGlobalState(true);
+  updateOvertimeMasterVisibility();
+  updateDiscountEnabledState();
   calculate();
 
   window.addEventListener('storage', (event) => {
@@ -5474,7 +6563,8 @@ function initTugs() {
 }
 
 window.addEventListener('afterprint', () => {
-  document.body.classList.remove('print-fit');
+  document.body.classList.remove('print-fit', 'print-desktop-lock', 'print-from-mobile');
+  disableMobilePrintFooterSuppression();
   if (printRestoreDensity === 'comfortable') {
     setDensity('comfortable');
   } else if (printRestoreDensity === 'none') {
@@ -5487,6 +6577,12 @@ window.addEventListener('afterprint', () => {
 window.addEventListener('beforeprint', () => {
   const logoLeftNote = document.getElementById('logoLeftNote');
   if (logoLeftNote) autoResizeTextarea(logoLeftNote);
+  if (document.body.classList.contains('page-index') && shouldUseMobilePrintProfile()) {
+    document.body.classList.add('print-from-mobile');
+    enableMobilePrintFooterSuppression();
+  } else {
+    disableMobilePrintFooterSuppression();
+  }
   applyPrintDensity();
   updatePrintHidden();
 });
@@ -5501,6 +6597,8 @@ window.addEventListener('DOMContentLoaded', () => {
   initIndex();
   initLightDues();
   initPortDues();
+  initBunkering();
+  initBerthageAnchorage();
   initPilotBoat();
   initPilotage();
   initMooring();

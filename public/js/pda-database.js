@@ -39,6 +39,12 @@
     'pda_port_dues_cargo_amount_sailing',
     'pda_port_dues_bunkering_amount_pda',
     'pda_port_dues_bunkering_amount_sailing',
+    'pda_bunkering_state',
+    'pda_bunkering_state_sailing',
+    'pda_berthage_state',
+    'pda_berthage_state_sailing',
+    'pda_berthage_amount_pda',
+    'pda_berthage_amount_sailing',
     'pda_mooring_state',
     'pda_mooring_state_sailing',
     'pda_mooring_amount_pda',
@@ -82,6 +88,10 @@
     'light-dues-sailing-pda.html',
     'port-dues-pda.html',
     'port-dues-sailing-pda.html',
+    'bunkering-pda.html',
+    'bunkering-sailing-pda.html',
+    'berthage-anchorage-pda.html',
+    'berthage-anchorage-sailing-pda.html',
     'pilot-pda.html',
     'pilot-sailing-pda.html',
     'pilot-boat-pda.html',
@@ -867,6 +877,51 @@
     );
   }
 
+  function shouldHideOutlayRowForNewDraft(row) {
+    if (!row || row.dataset.row === 'bank-charges') return false;
+
+    const dataRow = String(row.dataset.row || '').trim().toLowerCase();
+    if (dataRow === 'bunkering' || dataRow === 'berthage-quayage') {
+      return true;
+    }
+
+    const descField = row.querySelector('td.desc textarea, td.desc input');
+    const desc = String(descField && descField.value ? descField.value : '')
+      .trim()
+      .toUpperCase();
+    if (!desc) return false;
+
+    return (
+      desc.startsWith('BUNKER') ||
+      desc.startsWith('BERTHAGE/QUAYAGE/ANCHORAGE') ||
+      desc.startsWith('BERTHAGE/QUAYAGE') ||
+      desc.startsWith('ECS CARGO DECLARATION - IE547') ||
+      desc.startsWith('ISSUING BL') ||
+      desc.startsWith('GARBAGE REMOVAL (CAT. A, C UP TO 2 M3)') ||
+      desc.startsWith('GARBAGE REMOVAL FOOD (CAT. B UP TO 100KG')
+    );
+  }
+
+  function hideOutlayRowsForNewDraft() {
+    const outlaysBody = document.getElementById('outlaysBody');
+    if (!outlaysBody) return;
+
+    outlaysBody.querySelectorAll('tr').forEach((row) => {
+      if (!shouldHideOutlayRowForNewDraft(row)) return;
+      row.hidden = true;
+      row.dataset.outlayHidden = '1';
+    });
+  }
+
+  function showAllOutlayRows() {
+    const outlaysBody = document.getElementById('outlaysBody');
+    if (!outlaysBody) return;
+    outlaysBody.querySelectorAll('tr').forEach((row) => {
+      row.hidden = false;
+      delete row.dataset.outlayHidden;
+    });
+  }
+
   function resetEditablePdaCellsToZero() {
     const outlaysBody = document.getElementById('outlaysBody');
     if (!outlaysBody) return;
@@ -879,6 +934,27 @@
       pdaInput.value = zeroFormatted;
       delete pdaInput.dataset.rawValue;
     });
+  }
+
+  function resetTowageRowForNewDraft() {
+    const towageRow = document.querySelector('tr[data-row="towage"]');
+    if (!towageRow) return;
+
+    const zeroFormatted = typeof formatMoneyValue === 'function' ? formatMoneyValue(0) : '0,00';
+    const descField = towageRow.querySelector('td.desc textarea, td.desc input');
+    if (descField) {
+      const baseText = String(descField.dataset.baseText || '').trim() || 'TOWAGE';
+      descField.value = baseText;
+      if (descField.tagName === 'TEXTAREA' && typeof autoResizeTextarea === 'function') {
+        autoResizeTextarea(descField);
+      }
+    }
+
+    towageRow.querySelectorAll('td:nth-child(2) input.cell-input.money, td:nth-child(3) input.cell-input.money')
+      .forEach((input) => {
+        input.value = zeroFormatted;
+        delete input.dataset.rawValue;
+      });
   }
 
   function clearFormForNewPda() {
@@ -902,6 +978,10 @@
     writeField('quantityInput', '');
     writeField('agentInput', '');
     writeField('globalImoTransport', false);
+    writeField('togglePda', true);
+    writeField('toggleSailing', false);
+    writeField('toggleLogoNote', false);
+    writeField('roundPdaPrices', false);
     setTodayDateIfPossible();
 
     if (typeof setGlobalImoTransportState === 'function') {
@@ -912,13 +992,18 @@
     }
 
     resetEditablePdaCellsToZero();
+    showAllOutlayRows();
 
     if (typeof updateTowageFromStorage === 'function') updateTowageFromStorage();
+    resetTowageRowForNewDraft();
     if (typeof updateLightDuesFromStorage === 'function') updateLightDuesFromStorage();
     if (typeof updatePortDuesFromStorage === 'function') updatePortDuesFromStorage();
+    if (typeof updateBunkeringFromStorage === 'function') updateBunkeringFromStorage();
+    if (typeof updateBerthageFromStorage === 'function') updateBerthageFromStorage();
     if (typeof updatePilotageFromStorage === 'function') updatePilotageFromStorage();
     if (typeof updatePilotBoatFromStorage === 'function') updatePilotBoatFromStorage();
     if (typeof updateMooringFromStorage === 'function') updateMooringFromStorage();
+    hideOutlayRowsForNewDraft();
     if (typeof recalcOutlayTotals === 'function') recalcOutlayTotals();
 
     if (typeof saveIndexState === 'function') saveIndexState();
@@ -938,6 +1023,17 @@
     if (!returningFromCalculator && record.indexState && typeof record.indexState === 'object') {
       storageSet(DB_STORAGE.indexState, JSON.stringify(record.indexState));
       if (typeof restoreIndexState === 'function') restoreIndexState();
+    } else if (!returningFromCalculator) {
+      storageRemove(DB_STORAGE.indexState);
+      writeField('logoLeftNote', '');
+      writeField('titleNote', '');
+      writeField('lengthOverall', '');
+      writeField('bowThrusterFitted', '');
+      writeField('portInput', '');
+      writeField('togglePda', true);
+      writeField('toggleSailing', false);
+      writeField('toggleLogoNote', false);
+      writeField('roundPdaPrices', false);
     }
 
     if (!returningFromCalculator) {
@@ -977,7 +1073,8 @@
   async function saveCurrentPosition(options = {}) {
     const silent = Boolean(options.silent);
     const force = Boolean(options.force);
-    const currentId = getCurrentPositionId();
+    const activeId = activePositionRecord && activePositionRecord.id ? String(activePositionRecord.id) : '';
+    const currentId = activeId || getCurrentPositionId();
     const record = buildRecord(currentId || '', activePositionRecord);
     const signature = getRecordSignature(record);
 
@@ -1107,6 +1204,7 @@
     storageRemove(DB_STORAGE.gt);
     storageRemove(DB_STORAGE.quantity);
     storageRemove(DB_STORAGE.selected);
+    resetCalculatorStorageForNewDraft();
     window.location.href = `${FORM_PAGE}?new=1`;
   }
 

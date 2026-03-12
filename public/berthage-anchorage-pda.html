@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Berthage/Anchorage PDA</title>
+  <link rel="icon" type="image/svg+xml" href="images/favicon-pda.svg" />
+  <link rel="apple-touch-icon" href="images/favicon-pda.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-tugs page-berthage-anchorage-pda">
+  <div class="container">
+    <div class="actions top-home-actions">
+      <button type="button" onclick="goHome()">Back to PDA</button>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+      <span class="actions-spacer" aria-hidden="true"></span>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Berthage/Anchorage PDA</div>
+      <div class="row">
+        <div>
+          <label>Length Overall</label>
+          <input id="berthageLengthOverall" readonly />
+
+          <div class="berthage-options-grid mt-12">
+            <div class="berthage-option">
+              <label class="checkbox mt-12">
+                <input id="berthageEnabled" type="checkbox" />
+                Berthage/Quayage
+              </label>
+              <label>Days</label>
+              <input id="berthageDays" placeholder="Enter days" inputmode="decimal" />
+            </div>
+            <div class="berthage-option">
+              <label class="checkbox mt-12">
+                <input id="anchorageEnabled" type="checkbox" />
+                Anchorage
+              </label>
+              <label>Days</label>
+              <input id="anchorageDays" placeholder="Enter days" inputmode="decimal" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Berthage Table (EUR)</div>
+      <div class="table-wrap light-dues-wrap">
+        <table class="light-dues-table">
+          <tbody>
+            <tr>
+              <td>Tarif</td>
+              <td><input id="berthageTariff" class="light-dues-readonly" readonly /></td>
+            </tr>
+            <tr>
+              <td>Days</td>
+              <td><input id="berthageDaysValue" class="light-dues-readonly" readonly /></td>
+            </tr>
+            <tr>
+              <td>Amount (EUR)</td>
+              <td><input id="berthageAmount" class="light-dues-readonly" readonly /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Anchorage Table (EUR)</div>
+      <div class="table-wrap light-dues-wrap">
+        <table class="light-dues-table">
+          <tbody>
+            <tr>
+              <td>Tarif</td>
+              <td><input id="anchorageTariff" class="light-dues-readonly" readonly /></td>
+            </tr>
+            <tr>
+              <td>Days</td>
+              <td><input id="anchorageDaysValue" class="light-dues-readonly" readonly /></td>
+            </tr>
+            <tr>
+              <td>Amount (EUR)</td>
+              <td><input id="anchorageAmount" class="light-dues-readonly" readonly /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/script.js" defer></script>
+</body>
+</html>

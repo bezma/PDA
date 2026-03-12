@@ -4,9 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tug Service Calculator</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="images/logo.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="images/logo.png" />
-  <link rel="apple-touch-icon" sizes="180x180" href="images/logo.png" />
+  <link rel="icon" type="image/svg+xml" href="images/favicon-pda.svg" />
+  <link rel="apple-touch-icon" href="images/favicon-pda.svg" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body class="page-tugs">
@@ -18,7 +17,7 @@
       <span class="actions-spacer" aria-hidden="true"></span>
     </div>
 
-    <div class="card">
+    <div class="card" id="tugSummaryCard">
       <div class="row">
         <div>
           <label>Vessel Name</label>
@@ -34,14 +33,48 @@
           <div class="note">Tariff is auto-selected from GT</div>
         </div>
       </div>
-      <label class="checkbox imo-master-label mt-12">
-        <input type="checkbox" id="imoMaster" />
-        Towed ship transporting (IMO Code Classes I-III)
-      </label>
-      <label class="checkbox mt-8">
-        <input type="checkbox" id="linesMaster" />
-        Usage of tug lines
-      </label>
+      <div class="tug-options mt-12">
+        <button type="button" id="tugOptionsToggle" class="tug-options-toggle" aria-expanded="false" aria-controls="tugOptionsBody">
+          <span>Options</span>
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+        <div id="tugOptionsBody" class="tug-options-body" hidden>
+          <label class="checkbox imo-master-label">
+            <input type="checkbox" id="imoMaster" />
+            Towed ship transporting (IMO Code Classes I-III)
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" id="linesMaster" />
+            Usage of tug lines
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" id="arrivalOtMaster" />
+            Arrival overtime (25% Mon-Sat)
+          </label>
+          <label class="checkbox tug-sub-option" id="arrivalOtSundayWrap" hidden>
+            <input type="checkbox" id="arrivalOtSunday" />
+            Sunday/Holiday overtime (50% Sun &amp; Holiday)
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" id="departureOtMaster" />
+            Departure overtime (25% Mon-Sat)
+          </label>
+          <label class="checkbox tug-sub-option" id="departureOtSundayWrap" hidden>
+            <input type="checkbox" id="departureOtSunday" />
+            Sunday/Holiday overtime (50% Sun &amp; Holiday)
+          </label>
+          <div class="tug-discount">
+            <label class="checkbox">
+              <input type="checkbox" id="discountEnabled" />
+              Approved discount
+            </label>
+            <span class="tug-discount-field">
+              <input type="number" id="discountPercent" min="0" max="100" step="0.001" placeholder="0" />
+              <span class="tug-discount-suffix">%</span>
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="tugCards"></div>
