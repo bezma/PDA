@@ -5,6 +5,7 @@ let toggleSailing = null;
 let densityComfortable = null;
 let densityDense = null;
 let printRestoreDensity = null;
+let printRestoreTitle = null;
 let defaultOutlaysHtml = null;
 let mobilePrintPageStyle = null;
 let outlaysCurrency = null;
@@ -431,6 +432,44 @@ function setGlobalImoTransportState(checked) {
   const targetType = checked ? 'liquidCargo' : PORT_DUES_DEFAULT_CARGO_TYPE;
   setPortDuesCargoTypeState(targetType);
   setLightDuesTypeState(checked ? 'tanker' : LIGHT_DUES_DEFAULT_TYPE);
+}
+
+function getVesselNameForPrint() {
+  const stored = safeStorageGet(STORAGE_KEYS.vesselName);
+  if (stored) return String(stored).trim();
+  const indexField = document.getElementById('vesselNameIndex');
+  if (indexField && indexField.value) return String(indexField.value).trim();
+  const tugField = document.getElementById('vesselName');
+  if (tugField && tugField.value) return String(tugField.value).trim();
+  return '';
+}
+
+function setPrintTitleFromVessel() {
+  if (printRestoreTitle === null) {
+    printRestoreTitle = document.title;
+  }
+  const vesselName = getVesselNameForPrint();
+  const isTugsPage = document.body && document.body.classList.contains('page-tugs');
+  const baseTitle = isTugsPage ? 'Tug Service Calculator' : 'PRO-FORMA D/A';
+  document.title = vesselName ? `${baseTitle} ${vesselName}` : baseTitle;
+}
+
+function restorePrintTitleIfNeeded() {
+  if (printRestoreTitle === null) return;
+  document.title = printRestoreTitle;
+  printRestoreTitle = null;
+}
+
+function printWithTitle() {
+  setPrintTitleFromVessel();
+  window.requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      window.print();
+    }, 60);
+  });
+  window.setTimeout(() => {
+    restorePrintTitleIfNeeded();
+  }, 1500);
 }
 
 function isAnimatedIconButton(button) {
@@ -2845,7 +2884,7 @@ function printFit() {
   }
   updatePrintHidden();
   setTimeout(() => {
-    window.print();
+    printWithTitle();
   }, 160);
 }
 
@@ -6571,10 +6610,12 @@ window.addEventListener('afterprint', () => {
     document.body.classList.remove('density-comfortable', 'density-dense');
   }
   printRestoreDensity = null;
+  restorePrintTitleIfNeeded();
   clearPrintHidden();
 });
 
 window.addEventListener('beforeprint', () => {
+  setPrintTitleFromVessel();
   const logoLeftNote = document.getElementById('logoLeftNote');
   if (logoLeftNote) autoResizeTextarea(logoLeftNote);
   if (document.body.classList.contains('page-index') && shouldUseMobilePrintProfile()) {
