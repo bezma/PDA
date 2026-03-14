@@ -1643,23 +1643,6 @@ img[src*="assets/icons/"]:not([src*="grip-vertical.svg"]){
       max-width: none;
     }
 
-    body.page-index.print-from-mobile .container{
-      transform: scale(0.70);
-      width: 142%;
-    }
-
-    body.page-index.print-from-mobile .proforma-pill{
-      margin-bottom: 12px !important;
-    }
-
-    body.page-index.print-from-mobile .card-row{
-      margin-top: 10px !important;
-    }
-
-    body.page-index.print-from-mobile .hero{
-      margin-bottom: 14px !important;
-    }
-
     body.page-index.print-fit .top-toolbar,
     body.page-index.print-fit .options-card,
     body.page-index.print-fit .pda-db-card,
@@ -1760,14 +1743,13 @@ img[src*="assets/icons/"]:not([src*="grip-vertical.svg"]){
       @page{
         margin: 10mm 6mm 10mm 6mm;
       }
-      body.page-index.print-from-mobile{
-        padding: 10mm 6mm 10mm 6mm !important;
-      }
       body.page-index{
         font-size: 9px;
         font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
         color: #111;
         padding-bottom: 10mm;
+        -webkit-text-size-adjust: 100% !important;
+        text-size-adjust: 100% !important;
       }
       body.page-index::after{
         content: none !important;
@@ -1899,6 +1881,11 @@ img[src*="assets/icons/"]:not([src*="grip-vertical.svg"]){
         color: #fff !important;
         font-size: 15px;
         font-weight: 700;
+      }
+      body.page-index.print-mobile .outlays-table tfoot td{
+        padding-top: 3px;
+        padding-bottom: 3px;
+        line-height: 1;
       }
       body.page-index table{ min-width: 0; }
       body.page-index .outlays-table{
@@ -2090,6 +2077,34 @@ img[src*="assets/icons/"]:not([src*="grip-vertical.svg"]){
         font-size: 13.5px;
         line-height: 1.2;
         margin: 2px 0;
+      }
+      body.page-index .footer-grid.center-middle > div:nth-child(2) p{
+        white-space: nowrap;
+      }
+      body.page-index.print-mobile .hero{
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      body.page-index.print-mobile .proforma-pill{
+        flex: 0 1 auto;
+        margin-bottom: 0;
+        justify-content: center;
+      }
+      body.page-index.print-mobile .hero-right{
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      body.page-index a{
+        color: inherit !important;
+        text-decoration: none !important;
+      }
+      body.page-index a[href^="tel:"]{
+        pointer-events: none !important;
       }
     }
 

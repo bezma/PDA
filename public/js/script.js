@@ -10,6 +10,16 @@ let defaultOutlaysHtml = null;
 let mobilePrintPageStyle = null;
 let outlaysCurrency = null;
 let roundPdaPrices = null;
+
+function isLikelyMobileViewport() {
+  const ua = (navigator && navigator.userAgent) ? navigator.userAgent : '';
+  if (/Android|webOS|iPhone|iPad|iPod|Mobile|CriOS|FxiOS/i.test(ua)) return true;
+  const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+  if (Number.isFinite(viewportWidth) && viewportWidth > 0 && viewportWidth <= 900) return true;
+  const screenWidth = window.screen && Number.isFinite(window.screen.width) ? window.screen.width : 0;
+  if (screenWidth > 0 && screenWidth <= 900) return true;
+  return window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+}
 const STORAGE_KEYS = {
   vesselName: 'pda_vessel_name',
   gt: 'pda_gt',
@@ -2844,22 +2854,18 @@ function applyPrintDensity() {
   }
 }
 
-function shouldUseMobilePrintProfile() {
-  const ua = (navigator && navigator.userAgent) ? navigator.userAgent : '';
-  if (/Android|webOS|iPhone|iPad|iPod|Mobile|CriOS|FxiOS/i.test(ua)) return true;
-  const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-  if (Number.isFinite(viewportWidth) && viewportWidth > 0 && viewportWidth <= 900) return true;
-  const screenWidth = window.screen && Number.isFinite(window.screen.width) ? window.screen.width : 0;
-  if (screenWidth > 0 && screenWidth <= 900) return true;
-  return window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+function shouldSuppressMobilePrintFooters() {
+  return isLikelyMobileViewport();
 }
 
 function enableMobilePrintFooterSuppression() {
   if (mobilePrintPageStyle) return;
-  if (!document.body.classList.contains('print-from-mobile')) return;
   const style = document.createElement('style');
   style.id = 'mobilePrintPageStyle';
-  style.textContent = '@page { margin: 0 !important; size: A4; }';
+  style.textContent = [
+    '@page { margin: 0 !important; size: A4; }',
+    'body.page-index { padding: 10mm 6mm 10mm 6mm !important; }'
+  ].join('\n');
   document.head.appendChild(style);
   mobilePrintPageStyle = style;
 }
@@ -2875,11 +2881,15 @@ function printFit() {
   document.body.classList.add('print-fit');
   if (document.body.classList.contains('page-index')) {
     document.body.classList.add('print-desktop-lock');
-    if (shouldUseMobilePrintProfile()) {
-      document.body.classList.add('print-from-mobile');
+    if (shouldSuppressMobilePrintFooters()) {
       enableMobilePrintFooterSuppression();
     } else {
       disableMobilePrintFooterSuppression();
+    }
+    if (isLikelyMobileViewport()) {
+      document.body.classList.add('print-mobile');
+    } else {
+      document.body.classList.remove('print-mobile');
     }
   }
   updatePrintHidden();
@@ -2897,7 +2907,264 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function exportToExcel() {
+function getExcelColumnLetter(index) {
+  let result = '';
+  let n = index + 1;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    result = String.fromCharCode(65 + rem) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+  return result;
+}
+
+async function fetchImageAsDataUrl(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return '';
+    const blob = await response.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    return '';
+  }
+}
+
+async function exportToExcelWithExcelJs(options) {
+  const {
+    headerRows,
+    detailRows,
+    outlayRows,
+    outlayColumns,
+    totalRowValues,
+    dateValue,
+    currencyValue
+  } = options;
+
+  const templatePath = 'templates/PFMA DA.xlsx';
+  const templateUrl = encodeURI(templatePath);
+  try {
+    const templateResponse = await fetch(templateUrl, { cache: 'no-store' });
+    if (!templateResponse.ok) {
+      throw new Error('Template not found');
+    }
+    const templateBuffer = await templateResponse.arrayBuffer();
+    const templateWorkbook = new ExcelJS.Workbook();
+    await templateWorkbook.xlsx.load(templateBuffer);
+    const sheet = templateWorkbook.worksheets[0] || templateWorkbook.getWorksheet('Sheet1');
+    if (sheet) {
+      const getInputValue = (id) => {
+        const field = document.getElementById(id);
+        return field ? String(field.value || '').trim() : '';
+      };
+
+        sheet.getCell('J6').value = dateValue || '';
+        sheet.getCell('C8').value = getInputValue('portInput');
+        sheet.getCell('H8').value = getInputValue('berthTerminal');
+        sheet.getCell('C9').value = getInputValue('agentInput');
+        sheet.getCell('H9').value = currencyValue || 'EUR';
+        sheet.getCell('C11').value = getInputValue('vesselNameIndex') || getVesselNameForPrint();
+        sheet.getCell('C12').value = getInputValue('lengthOverall');
+        sheet.getCell('C13').value = getInputValue('grossTonnage');
+        sheet.getCell('H13').value = getInputValue('operationsInput');
+        const cargoValueCell = sheet.getCell('H11');
+        cargoValueCell.value = getInputValue('cargoInput');
+        cargoValueCell.font = { ...(cargoValueCell.font || {}), bold: true };
+        sheet.getCell('H12').value = getInputValue('quantityInput');
+
+        const startRow = 16;
+        const endRow = 35;
+
+        const pdaIndex = outlayColumns.findIndex((column) => column.key === 'pda');
+        outlayRows.forEach((row, index) => {
+          const rowNumber = startRow + index;
+          if (rowNumber > endRow) return;
+          const descValue = row[0] != null ? String(row[0]) : '';
+          const descCell = sheet.getCell(`A${rowNumber}`);
+          descCell.value = descValue;
+          descCell.font = { ...(descCell.font || {}), bold: true };
+          const rawAmount = pdaIndex >= 0 ? row[pdaIndex] : '';
+          const amountValue = parseMoneyValue(rawAmount);
+          if (Number.isFinite(amountValue) && rawAmount !== '') {
+            const amountCell = sheet.getCell(`H${rowNumber}`);
+            amountCell.value = amountValue;
+            amountCell.font = { ...(amountCell.font || {}), bold: true };
+          } else {
+            const amountCell = sheet.getCell(`H${rowNumber}`);
+            amountCell.value = rawAmount || '';
+            amountCell.font = { ...(amountCell.font || {}), bold: true };
+          }
+        });
+
+        const totalPdaValue = pdaIndex >= 0 ? totalRowValues[pdaIndex] : '';
+        const totalAmount = parseMoneyValue(totalPdaValue);
+        if (Number.isFinite(totalAmount) && totalPdaValue !== '') {
+          sheet.getCell('H36').value = totalAmount;
+        } else {
+          sheet.getCell('H36').value = totalPdaValue || '';
+        }
+
+
+
+      const existingMedia = Array.isArray(templateWorkbook.model?.media)
+        ? templateWorkbook.model.media.length
+        : 0;
+      if (!existingMedia) {
+        const logoDataUrl = await fetchImageAsDataUrl('images/logo.png');
+        if (logoDataUrl) {
+          const logoId = templateWorkbook.addImage({ base64: logoDataUrl, extension: 'png' });
+          sheet.addImage(logoId, { tl: { col: 0, row: 0 }, ext: { width: 160, height: 60 } });
+        }
+      }
+
+      const buffer = await templateWorkbook.xlsx.writeBuffer({
+        useStyles: true,
+        useSharedStrings: true
+      });
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeDate = dateValue.replace(/[^\d-]/g, '') || 'pro-forma';
+      link.href = url;
+      link.download = `pro-forma-da-${safeDate}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return;
+    }
+  } catch (error) {
+    window.alert('Excel template could not be loaded. Make sure templates/PFMA DA.xlsx exists.');
+    return;
+  }
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'PDA';
+  const dataSheet = workbook.addWorksheet('Data');
+  const pfmaSheet = workbook.addWorksheet('PFMA DA');
+
+  const headerRowMap = {};
+  headerRows.forEach((row) => {
+    const excelRow = dataSheet.addRow(row);
+    if (row[0]) headerRowMap[String(row[0])] = excelRow.number;
+  });
+  dataSheet.addRow([]);
+  const detailsHeader = dataSheet.addRow(['Details']);
+  detailsHeader.font = { bold: true };
+
+  const detailRowMap = {};
+  detailRows.forEach((row) => {
+    const excelRow = dataSheet.addRow(row);
+    if (row[0]) detailRowMap[String(row[0])] = excelRow.number;
+  });
+
+  dataSheet.addRow([]);
+  const outlayHeaderRow = dataSheet.addRow(outlayColumns.map((column) => column.label));
+  outlayHeaderRow.font = { bold: true };
+  const outlaysStartRow = outlayHeaderRow.number + 1;
+  outlayRows.forEach((row) => dataSheet.addRow(row));
+  const totalRow = dataSheet.addRow(totalRowValues);
+  totalRow.font = { bold: true };
+
+  dataSheet.getColumn(1).width = 50;
+  dataSheet.getColumn(2).width = 22;
+  dataSheet.getColumn(3).width = 22;
+
+  pfmaSheet.getColumn(1).width = 42;
+  pfmaSheet.getColumn(2).width = 28;
+  pfmaSheet.getColumn(3).width = 18;
+
+  const logoDataUrl = await fetchImageAsDataUrl('images/logo.png');
+  if (logoDataUrl) {
+    const logoId = workbook.addImage({ base64: logoDataUrl, extension: 'png' });
+    pfmaSheet.addImage(logoId, { tl: { col: 0, row: 0 }, ext: { width: 160, height: 60 } });
+  }
+
+  pfmaSheet.mergeCells('A1:C1');
+  const titleCell = pfmaSheet.getCell('A1');
+  titleCell.value = 'PRO-FORMA D/A';
+  titleCell.font = { bold: true, size: 16 };
+
+  pfmaSheet.getCell('A2').value = 'Split';
+  const dateCell = pfmaSheet.getCell('B2');
+  dateCell.value = { formula: `Data!B${headerRowMap.Split || 3}` };
+
+  const detailStartRow = 4;
+  const detailLabels = [
+    { label: 'Vessel Name', keys: ['Vessel Name', 'Vessel name'] },
+    { label: 'Gross Tonnage (GT)', keys: ['Gross Tonnage (GT)', 'Gross Tonnage'] },
+    { label: 'Port', keys: ['Port'] },
+    { label: 'Terminal', keys: ['Terminal', 'Berth/Terminal', 'Berth/terminal'] },
+    { label: 'Operation', keys: ['Operation', 'Operations'] },
+    { label: 'Cargo', keys: ['Cargo'] },
+    { label: 'Quantity', keys: ['Quantity'] },
+    { label: 'Agent', keys: ['Agent'] }
+  ];
+
+  let rowCursor = detailStartRow;
+  detailLabels.forEach((item) => {
+    pfmaSheet.getCell(rowCursor, 1).value = item.label;
+    const matchKey = item.keys.find((key) => detailRowMap[key]);
+    if (matchKey) {
+      pfmaSheet.getCell(rowCursor, 2).value = { formula: `Data!B${detailRowMap[matchKey]}` };
+    }
+    rowCursor += 1;
+  });
+
+  rowCursor += 1;
+  const pfmaCurrency = currencyValue || 'EUR';
+  pfmaSheet.getCell(rowCursor, 1).value = `Outlays & Charges Expressed In ${pfmaCurrency}`.trim();
+  pfmaSheet.getCell(rowCursor, 1).font = { bold: true };
+  rowCursor += 1;
+
+  outlayColumns.forEach((column, index) => {
+    const cell = pfmaSheet.getCell(rowCursor, index + 1);
+    cell.value = column.label;
+    cell.font = { bold: true };
+  });
+
+  const dataSheetRef = 'Data';
+  outlayRows.forEach((row, index) => {
+    const dataRow = outlaysStartRow + index;
+    outlayColumns.forEach((column, colIndex) => {
+      const dataCol = getExcelColumnLetter(colIndex);
+      pfmaSheet.getCell(rowCursor + 1 + index, colIndex + 1).value = {
+        formula: `${dataSheetRef}!${dataCol}${dataRow}`
+      };
+    });
+  });
+
+  const totalRowIndex = outlaysStartRow + outlayRows.length;
+  const totalsRow = rowCursor + 1 + outlayRows.length;
+  outlayColumns.forEach((column, colIndex) => {
+    const dataCol = getExcelColumnLetter(colIndex);
+    const cell = pfmaSheet.getCell(totalsRow, colIndex + 1);
+    cell.value = { formula: `${dataSheetRef}!${dataCol}${totalRowIndex}` };
+    cell.font = { bold: true };
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  const safeDate = dateValue.replace(/[^\d-]/g, '') || 'pro-forma';
+  link.href = url;
+  link.download = `pro-forma-da-${safeDate}.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+async function exportToExcel() {
   const outlaysBody = document.getElementById('outlaysBody');
   if (!outlaysBody) return;
 
@@ -2943,16 +3210,20 @@ function exportToExcel() {
   if (includePda) outlayColumns.push({ key: 'pda', label: `PDA (${currencyValue})` });
   if (includeSailing) outlayColumns.push({ key: 'sailing', label: `Sailing PDA (${currencyValue})` });
 
+  const outlayRowsNormalized = outlayRows.map((row) => {
+    const rowMap = { desc: row[0], pda: row[1], sailing: row[2] };
+    return outlayColumns.map((column) => rowMap[column.key]);
+  });
+
   const columnCount = outlayColumns.length;
   const outlayHeaderCells = outlayColumns
     .map((column) => `<th>${escapeHtml(column.label)}</th>`)
     .join('');
 
-  const outlayBodyRows = outlayRows
+  const outlayBodyRows = outlayRowsNormalized
     .map((row) => {
-      const rowMap = { desc: row[0], pda: row[1], sailing: row[2] };
-      const cells = outlayColumns
-        .map((column) => `<td>${escapeHtml(rowMap[column.key])}</td>`)
+      const cells = row
+        .map((value) => `<td>${escapeHtml(value)}</td>`)
         .join('');
       return `<tr>${cells}</tr>`;
     })
@@ -2963,9 +3234,23 @@ function exportToExcel() {
     pda: totalPda,
     sailing: totalSailing
   };
-  const totalCells = outlayColumns
-    .map((column) => `<td>${escapeHtml(totalMap[column.key])}</td>`)
+  const totalRowValues = outlayColumns.map((column) => totalMap[column.key]);
+  const totalCells = totalRowValues
+    .map((value) => `<td>${escapeHtml(value)}</td>`)
     .join('');
+
+  if (window.ExcelJS && typeof ExcelJS.Workbook === 'function') {
+    await exportToExcelWithExcelJs({
+      headerRows,
+      detailRows,
+      outlayRows: outlayRowsNormalized,
+      outlayColumns,
+      totalRowValues,
+      dateValue,
+      currencyValue
+    });
+    return;
+  }
 
   const headerTable = `
     <table>
@@ -6602,7 +6887,7 @@ function initTugs() {
 }
 
 window.addEventListener('afterprint', () => {
-  document.body.classList.remove('print-fit', 'print-desktop-lock', 'print-from-mobile');
+  document.body.classList.remove('print-fit', 'print-desktop-lock', 'print-mobile');
   disableMobilePrintFooterSuppression();
   if (printRestoreDensity === 'comfortable') {
     setDensity('comfortable');
@@ -6618,11 +6903,15 @@ window.addEventListener('beforeprint', () => {
   setPrintTitleFromVessel();
   const logoLeftNote = document.getElementById('logoLeftNote');
   if (logoLeftNote) autoResizeTextarea(logoLeftNote);
-  if (document.body.classList.contains('page-index') && shouldUseMobilePrintProfile()) {
-    document.body.classList.add('print-from-mobile');
+  if (document.body.classList.contains('page-index') && shouldSuppressMobilePrintFooters()) {
     enableMobilePrintFooterSuppression();
   } else {
     disableMobilePrintFooterSuppression();
+  }
+  if (document.body.classList.contains('page-index') && isLikelyMobileViewport()) {
+    document.body.classList.add('print-mobile');
+  } else {
+    document.body.classList.remove('print-mobile');
   }
   applyPrintDensity();
   updatePrintHidden();
