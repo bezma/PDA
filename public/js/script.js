@@ -418,6 +418,24 @@ function setLightDuesTypeState(type) {
   });
 }
 
+function resetLightDuesTypeIfTanker() {
+  const keys = [STORAGE_KEYS.lightDuesState, STORAGE_KEYS.lightDuesStateSailing];
+  keys.forEach((key) => {
+    const raw = safeStorageGet(key);
+    if (!raw) return;
+    let state = {};
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') state = parsed;
+    } catch (error) {
+      state = {};
+    }
+    if (state.type !== 'tanker') return;
+    state.type = LIGHT_DUES_DEFAULT_TYPE;
+    safeStorageSet(key, JSON.stringify(state));
+  });
+}
+
 function setPortDuesCargoTypeState(cargoType) {
   if (!cargoType) return;
   const keys = [STORAGE_KEYS.portDuesState, STORAGE_KEYS.portDuesStateSailing];
@@ -437,11 +455,36 @@ function setPortDuesCargoTypeState(cargoType) {
   });
 }
 
-function setGlobalImoTransportState(checked) {
+function resetPortDuesCargoTypeIfLiquid() {
+  const keys = [STORAGE_KEYS.portDuesState, STORAGE_KEYS.portDuesStateSailing];
+  keys.forEach((key) => {
+    const raw = safeStorageGet(key);
+    if (!raw) return;
+    let state = {};
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') state = parsed;
+    } catch (error) {
+      state = {};
+    }
+    if (state.cargoType !== 'liquidCargo') return;
+    state.cargoType = PORT_DUES_DEFAULT_CARGO_TYPE;
+    safeStorageSet(key, JSON.stringify(state));
+  });
+}
+
+function setGlobalImoTransportState(checked, options = {}) {
+  const resetWhenUnchecked = options.resetWhenUnchecked !== false;
   safeStorageSet(STORAGE_KEYS.globalImoTransport, checked ? '1' : '0');
-  const targetType = checked ? 'liquidCargo' : PORT_DUES_DEFAULT_CARGO_TYPE;
-  setPortDuesCargoTypeState(targetType);
-  setLightDuesTypeState(checked ? 'tanker' : LIGHT_DUES_DEFAULT_TYPE);
+  if (checked) {
+    setPortDuesCargoTypeState('liquidCargo');
+    setLightDuesTypeState('tanker');
+    return;
+  }
+  if (resetWhenUnchecked) {
+    resetPortDuesCargoTypeIfLiquid();
+    resetLightDuesTypeIfTanker();
+  }
 }
 
 function getVesselNameForPrint() {
@@ -3652,11 +3695,13 @@ function initIndex() {
   if (globalImoTransport) {
     const globalImoState = getGlobalImoTransportState();
     if (globalImoState === null) {
-      setGlobalImoTransportState(Boolean(globalImoTransport.checked));
+      safeStorageSet(STORAGE_KEYS.globalImoTransport, globalImoTransport.checked ? '1' : '0');
     } else if (globalImoTransport.checked !== globalImoState) {
       globalImoTransport.checked = globalImoState;
     }
-    setGlobalImoTransportState(Boolean(globalImoTransport.checked));
+    if (globalImoTransport.checked) {
+      setGlobalImoTransportState(true, { resetWhenUnchecked: false });
+    }
 
     globalImoTransport.addEventListener('change', () => {
       setGlobalImoTransportState(Boolean(globalImoTransport.checked));
@@ -3900,7 +3945,8 @@ function setTierVisibility(typeInput, tierWrap) {
 function enforceLightDuesTypeFromImo(typeInput, tierBandInput, gtInput) {
   if (!typeInput || !isLightDuesPdaPage() && !isLightDuesSailingPage()) return false;
   const globalImo = getGlobalImoTransportState();
-  const targetType = globalImo ? 'tanker' : LIGHT_DUES_DEFAULT_TYPE;
+  if (!globalImo) return false;
+  const targetType = 'tanker';
   if (typeInput.value === targetType) return false;
   typeInput.value = targetType;
   rebuildTierOptions(typeInput, tierBandInput, '', Number(gtInput?.value));
@@ -4157,7 +4203,8 @@ function getPortDuesCargoTypeConfig(type) {
 function enforcePortDuesCargoTypeFromImo(cargoTypeInput) {
   if (!cargoTypeInput || (!isPortDuesPdaPage() && !isPortDuesSailingPage())) return false;
   const globalImo = getGlobalImoTransportState();
-  const targetType = globalImo ? 'liquidCargo' : PORT_DUES_DEFAULT_CARGO_TYPE;
+  if (!globalImo) return false;
+  const targetType = 'liquidCargo';
   if (cargoTypeInput.value === targetType) return false;
   cargoTypeInput.value = targetType;
   return true;
