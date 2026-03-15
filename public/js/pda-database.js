@@ -546,7 +546,12 @@
   function readField(id) {
     const field = document.getElementById(id);
     if (!field) return '';
-    return String(field.value || '').trim();
+    const raw = String(field.value || '').trim();
+    const placeholder = String(field.placeholder || '').trim();
+    if (raw && placeholder && raw === placeholder && field.dataset.userEdited !== '1') {
+      return '';
+    }
+    return raw;
   }
 
   function writeField(id, value) {
@@ -556,7 +561,12 @@
       field.checked = Boolean(value);
       return;
     }
-    field.value = value == null ? '' : String(value);
+    const nextValue = value == null ? '' : String(value);
+    field.value = nextValue;
+    if (field.dataset) {
+      if (nextValue.trim()) field.dataset.userEdited = '1';
+      else delete field.dataset.userEdited;
+    }
   }
 
   function formatSavedAt(savedAt) {
