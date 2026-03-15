@@ -474,11 +474,16 @@ function resetPortDuesCargoTypeIfLiquid() {
 }
 
 function setGlobalImoTransportState(checked) {
+function setGlobalImoTransportState(checked, options = {}) {
+  const resetWhenUnchecked = options.resetWhenUnchecked !== false;
   safeStorageSet(STORAGE_KEYS.globalImoTransport, checked ? '1' : '0');
   if (checked) {
     setPortDuesCargoTypeState('liquidCargo');
     setLightDuesTypeState('tanker');
   } else {
+    return;
+  }
+  if (resetWhenUnchecked) {
     resetPortDuesCargoTypeIfLiquid();
     resetLightDuesTypeIfTanker();
   }
@@ -3709,12 +3714,13 @@ function initIndex() {
   if (globalImoTransport) {
     const globalImoState = getGlobalImoTransportState();
     if (globalImoState === null) {
-      setGlobalImoTransportState(Boolean(globalImoTransport.checked));
+      safeStorageSet(STORAGE_KEYS.globalImoTransport, globalImoTransport.checked ? '1' : '0');
     } else if (globalImoTransport.checked !== globalImoState) {
       globalImoTransport.checked = globalImoState;
     }
     if (globalImoTransport.checked) {
       setGlobalImoTransportState(true);
+      setGlobalImoTransportState(true, { resetWhenUnchecked: false });
     }
 
     globalImoTransport.addEventListener('change', () => {
