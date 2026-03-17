@@ -75,6 +75,7 @@
   let autosaveQueued = false;
   let lastSavedRecordSignature = '';
   let autosaveListenersBound = false;
+  let currentSessionUser = null;
   const DASHBOARD_ICON_ANIMATION_CLASS = 'icon-animating';
   const DASHBOARD_ICON_ANIMATION_MS = 176;
   const dashboardIconAnimationTimers = new WeakMap();
@@ -546,7 +547,12 @@
   function readField(id) {
     const field = document.getElementById(id);
     if (!field) return '';
-    return String(field.value || '').trim();
+    const raw = String(field.value || '').trim();
+    const placeholder = String(field.placeholder || '').trim();
+    if (raw && placeholder && raw === placeholder && field.dataset.userEdited !== '1') {
+      return '';
+    }
+    return raw;
   }
 
   function writeField(id, value) {
@@ -556,7 +562,12 @@
       field.checked = Boolean(value);
       return;
     }
-    field.value = value == null ? '' : String(value);
+    const nextValue = value == null ? '' : String(value);
+    field.value = nextValue;
+    if (field.dataset) {
+      if (nextValue.trim()) field.dataset.userEdited = '1';
+      else delete field.dataset.userEdited;
+    }
   }
 
   function formatSavedAt(savedAt) {
@@ -1149,6 +1160,72 @@
     window.location.href = DASHBOARD_PAGE;
   }
 
+  async function fetchCurrentSessionUser() {
+    if (currentSessionUser) return currentSessionUser;
+
+    try {
+      const response = await fetch('/api/auth/session', {
+        credentials: 'same-origin'
+      });
+
+      if (response.status === 401) {
+        window.location.href = 'login.html';
+        return null;
+      }
+
+      const payload = await response.json().catch(() => null);
+      const user = payload && payload.user && typeof payload.user === 'object' ? payload.user : null;
+      if (!user) return null;
+
+      currentSessionUser = {
+        username: String(user.username || '').trim(),
+        displayName: String(user.displayName || '').trim()
+      };
+      return currentSessionUser;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getSessionUserLabel(user) {
+    if (!user || typeof user !== 'object') return '';
+    return String(user.displayName || user.username || '').trim();
+  }
+
+  async function logoutCurrentSession() {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin'
+      });
+    } catch (error) {
+      // ignore logout network errors and still return to login
+    }
+    window.location.href = 'login.html';
+  }
+
+  async function populateCurrentUserLabel() {
+    const labelNode = document.getElementById('currentUserLabel');
+    if (!labelNode) return;
+
+    const user = await fetchCurrentSessionUser();
+    const label = getSessionUserLabel(user);
+    if (label) labelNode.textContent = label;
+  }
+
+  async function populateAgentFromSessionIfEmpty() {
+    const agentField = document.getElementById('agentInput');
+    if (!agentField) return;
+    if (String(agentField.value || '').trim()) return;
+
+    const user = await fetchCurrentSessionUser();
+    const label = getSessionUserLabel(user);
+    if (!label) return;
+
+    writeField('agentInput', label);
+    if (typeof saveIndexState === 'function') saveIndexState();
+  }
+
   async function saveCurrentPositionAndOpenDashboard() {
     const record = await saveCurrentPosition();
     if (!record) return;
@@ -1168,13 +1245,17 @@
       clonePlainObject(sourceRecord.indexState) ||
       snapshotIndexState() ||
       null;
+    const currentUser = await fetchCurrentSessionUser();
+    const duplicatedAgent = getSessionUserLabel(currentUser) || sourceRecord.agent || '';
     if (duplicatedIndexState && duplicatedIndexState.fields && typeof duplicatedIndexState.fields === 'object') {
       duplicatedIndexState.fields.dateInput = duplicatedDate;
+      duplicatedIndexState.fields.agentInput = duplicatedAgent;
     }
     const duplicatedRecord = {
       ...sourceRecord,
       id: makeId(),
       date: duplicatedDate,
+      agent: duplicatedAgent,
       createdAt: nowIso,
       savedAt: nowIso,
       indexState: duplicatedIndexState,
@@ -1187,9 +1268,11 @@
     try {
       await upsertPosition(duplicatedRecord);
       writeField('dateInput', duplicatedDate);
+      writeField('agentInput', duplicatedAgent);
       setCurrentPositionId(duplicatedRecord.id);
       activePositionRecord = clonePlainObject(duplicatedRecord) || { ...duplicatedRecord };
       lastSavedRecordSignature = getRecordSignature(duplicatedRecord);
+      if (typeof saveIndexState === 'function') saveIndexState();
       if (tableBody) await renderPositionsTable();
       setStatus('PDA duplicated. You are editing a new copy.', false);
     } catch (error) {
@@ -1258,9 +1341,17 @@
     if (!tableBody) return;
     bindDashboardIconAnimations();
     storageRemove(DB_STORAGE.searchQuery);
+    void populateCurrentUserLabel();
 
     const addBtn = document.getElementById('addPdaPositionBtn');
     if (addBtn) addBtn.addEventListener('click', openNewDraftInForm);
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        void logoutCurrentSession();
+      });
+    }
 
     searchInput = document.getElementById('pdaSearchInput');
     if (searchInput) {
@@ -1339,6 +1430,7 @@
       activePositionRecord = null;
       lastSavedRecordSignature = '';
       clearFormForNewPda();
+      await populateAgentFromSessionIfEmpty();
       setStatus('New PDA ready. Enter Vessel Name.', false);
       focusVesselInput();
       return;

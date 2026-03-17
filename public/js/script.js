@@ -399,6 +399,25 @@ function getGlobalImoTransportState() {
   return parseStoredBoolean(safeStorageGet(STORAGE_KEYS.globalImoTransport));
 }
 
+function resolveLightDuesTypeForImo(type, globalImo, options = {}) {
+  const currentType = typeof type === 'string' && type ? type : LIGHT_DUES_DEFAULT_TYPE;
+  if (globalImo) return 'tanker';
+  if (options.resetForced && currentType === 'tanker') return LIGHT_DUES_DEFAULT_TYPE;
+  return currentType;
+}
+
+function resolvePortDuesCargoTypeForImo(cargoType, globalImo, options = {}) {
+  const currentType = typeof cargoType === 'string' && cargoType ? cargoType : PORT_DUES_DEFAULT_CARGO_TYPE;
+  if (globalImo) return 'liquidCargo';
+  if (options.resetForced && currentType === 'liquidCargo') return PORT_DUES_DEFAULT_CARGO_TYPE;
+  return currentType;
+}
+
+function shouldApplyGlobalImoStateOnInit(storedState, checkboxChecked) {
+  if (storedState === null) return Boolean(checkboxChecked);
+  return Boolean(storedState);
+}
+
 function setLightDuesTypeState(type) {
   if (!type) return;
   const keys = [STORAGE_KEYS.lightDuesState, STORAGE_KEYS.lightDuesStateSailing];
@@ -418,20 +437,20 @@ function setLightDuesTypeState(type) {
   });
 }
 
-function resetLightDuesTypeIfTanker() {
+function syncLightDuesTypeStateFromImo(checked) {
   const keys = [STORAGE_KEYS.lightDuesState, STORAGE_KEYS.lightDuesStateSailing];
   keys.forEach((key) => {
     const raw = safeStorageGet(key);
-    if (!raw) return;
     let state = {};
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') state = parsed;
-    } catch (error) {
-      state = {};
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') state = parsed;
+      } catch (error) {
+        state = {};
+      }
     }
-    if (state.type !== 'tanker') return;
-    state.type = LIGHT_DUES_DEFAULT_TYPE;
+    state.type = resolveLightDuesTypeForImo(state.type, checked, { resetForced: true });
     safeStorageSet(key, JSON.stringify(state));
   });
 }
@@ -455,36 +474,28 @@ function setPortDuesCargoTypeState(cargoType) {
   });
 }
 
-function resetPortDuesCargoTypeIfLiquid() {
+function syncPortDuesCargoTypeStateFromImo(checked) {
   const keys = [STORAGE_KEYS.portDuesState, STORAGE_KEYS.portDuesStateSailing];
   keys.forEach((key) => {
     const raw = safeStorageGet(key);
-    if (!raw) return;
     let state = {};
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') state = parsed;
-    } catch (error) {
-      state = {};
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') state = parsed;
+      } catch (error) {
+        state = {};
+      }
     }
-    if (state.cargoType !== 'liquidCargo') return;
-    state.cargoType = PORT_DUES_DEFAULT_CARGO_TYPE;
+    state.cargoType = resolvePortDuesCargoTypeForImo(state.cargoType, checked, { resetForced: true });
     safeStorageSet(key, JSON.stringify(state));
   });
 }
 
-function setGlobalImoTransportState(checked, options = {}) {
-  const resetWhenUnchecked = options.resetWhenUnchecked !== false;
+function setGlobalImoTransportState(checked) {
   safeStorageSet(STORAGE_KEYS.globalImoTransport, checked ? '1' : '0');
-  if (checked) {
-    setPortDuesCargoTypeState('liquidCargo');
-    setLightDuesTypeState('tanker');
-    return;
-  }
-  if (resetWhenUnchecked) {
-    resetPortDuesCargoTypeIfLiquid();
-    resetLightDuesTypeIfTanker();
-  }
+  syncPortDuesCargoTypeStateFromImo(Boolean(checked));
+  syncLightDuesTypeStateFromImo(Boolean(checked));
 }
 
 function getVesselNameForPrint() {
@@ -630,7 +641,12 @@ function updateImoToggleLabelColor(input) {
 function readFieldValue(field) {
   if (!field) return '';
   if (field.type === 'checkbox') return Boolean(field.checked);
-  return field.value;
+  const raw = String(field.value || '').trim();
+  const placeholder = String(field.placeholder || '').trim();
+  if (raw && placeholder && raw === placeholder && field.dataset.userEdited !== '1') {
+    return '';
+  }
+  return raw;
 }
 
 function applyFieldValue(field, value) {
@@ -639,7 +655,12 @@ function applyFieldValue(field, value) {
     field.checked = Boolean(value);
     return;
   }
-  field.value = String(value);
+  const nextValue = value == null ? '' : String(value);
+  field.value = nextValue;
+  if (field.dataset) {
+    if (nextValue.trim()) field.dataset.userEdited = '1';
+    else delete field.dataset.userEdited;
+  }
 }
 
 function migrateLegacyIconMarkup(markup) {
@@ -3518,6 +3539,13 @@ async function openMooringSailingPda() {
 }
 
 async function goHome() {
+  if (typeof saveLightDuesState === 'function') saveLightDuesState();
+  if (typeof savePortDuesState === 'function') savePortDuesState();
+  if (typeof saveBunkeringState === 'function') saveBunkeringState();
+  if (typeof saveBerthageState === 'function') saveBerthageState();
+  if (typeof savePilotageState === 'function') savePilotageState();
+  if (typeof saveMooringState === 'function') saveMooringState();
+  if (typeof savePilotBoatState === 'function') savePilotBoatState();
   savePilotBoatAmount();
   saveTugsState();
   await autosaveCurrentPdaBeforeNavigation();
@@ -3694,13 +3722,11 @@ function initIndex() {
   }
   if (globalImoTransport) {
     const globalImoState = getGlobalImoTransportState();
-    if (globalImoState === null) {
-      safeStorageSet(STORAGE_KEYS.globalImoTransport, globalImoTransport.checked ? '1' : '0');
-    } else if (globalImoTransport.checked !== globalImoState) {
+    if (globalImoState !== null && globalImoTransport.checked !== globalImoState) {
       globalImoTransport.checked = globalImoState;
     }
-    if (globalImoTransport.checked) {
-      setGlobalImoTransportState(true, { resetWhenUnchecked: false });
+    if (shouldApplyGlobalImoStateOnInit(globalImoState, globalImoTransport.checked)) {
+      setGlobalImoTransportState(true);
     }
 
     globalImoTransport.addEventListener('change', () => {
@@ -3942,16 +3968,26 @@ function setTierVisibility(typeInput, tierWrap) {
   tierWrap.style.display = hasTierOptions ? '' : 'none';
 }
 
-function enforceLightDuesTypeFromImo(typeInput, tierBandInput, gtInput) {
+function enforceLightDuesTypeFromImo(typeInput, tierBandInput, gtInput, options = {}) {
   if (!typeInput || !isLightDuesPdaPage() && !isLightDuesSailingPage()) return false;
   const globalImo = getGlobalImoTransportState();
-  if (!globalImo) return false;
-  const targetType = 'tanker';
-  if (typeInput.value === targetType) return false;
-  typeInput.value = targetType;
-  rebuildTierOptions(typeInput, tierBandInput, '', Number(gtInput?.value));
-  setTierVisibility(typeInput, document.getElementById('lightDuesTierWrap'));
-  return true;
+  if (globalImo) {
+    const targetType = 'tanker';
+    if (typeInput.value === targetType) return false;
+    typeInput.value = targetType;
+    rebuildTierOptions(typeInput, tierBandInput, '', Number(gtInput?.value));
+    setTierVisibility(typeInput, document.getElementById('lightDuesTierWrap'));
+    return true;
+  }
+
+  if (options.resetForced && typeInput.value === 'tanker') {
+    typeInput.value = LIGHT_DUES_DEFAULT_TYPE;
+    rebuildTierOptions(typeInput, tierBandInput, '', Number(gtInput?.value));
+    setTierVisibility(typeInput, document.getElementById('lightDuesTierWrap'));
+    return true;
+  }
+
+  return false;
 }
 
 function saveLightDuesState() {
@@ -4159,7 +4195,7 @@ function initLightDues() {
       syncGtFromShared();
     }
     if (event.key === STORAGE_KEYS.globalImoTransport) {
-      if (enforceLightDuesTypeFromImo(typeInput, tierBandInput, gtInput)) {
+      if (enforceLightDuesTypeFromImo(typeInput, tierBandInput, gtInput, { resetForced: true })) {
         calculateLightDues();
       }
     }
@@ -4200,14 +4236,22 @@ function getPortDuesCargoTypeConfig(type) {
   return PORT_DUES_CARGO_TYPES[type] || PORT_DUES_CARGO_TYPES[PORT_DUES_DEFAULT_CARGO_TYPE];
 }
 
-function enforcePortDuesCargoTypeFromImo(cargoTypeInput) {
+function enforcePortDuesCargoTypeFromImo(cargoTypeInput, options = {}) {
   if (!cargoTypeInput || (!isPortDuesPdaPage() && !isPortDuesSailingPage())) return false;
   const globalImo = getGlobalImoTransportState();
-  if (!globalImo) return false;
-  const targetType = 'liquidCargo';
-  if (cargoTypeInput.value === targetType) return false;
-  cargoTypeInput.value = targetType;
-  return true;
+  if (globalImo) {
+    const targetType = 'liquidCargo';
+    if (cargoTypeInput.value === targetType) return false;
+    cargoTypeInput.value = targetType;
+    return true;
+  }
+
+  if (options.resetForced && cargoTypeInput.value === 'liquidCargo') {
+    cargoTypeInput.value = PORT_DUES_DEFAULT_CARGO_TYPE;
+    return true;
+  }
+
+  return false;
 }
 
 function setPortDuesTerminalDischargedState(toggleInput, wrapInput, quantityInput) {
@@ -4369,7 +4413,7 @@ function initPortDues() {
       }
     }
     if (event.key === STORAGE_KEYS.globalImoTransport) {
-      if (enforcePortDuesCargoTypeFromImo(cargoTypeInput)) {
+      if (enforcePortDuesCargoTypeFromImo(cargoTypeInput, { resetForced: true })) {
         calculatePortDues();
       }
     }
@@ -6933,51 +6977,80 @@ function initTugs() {
   window.addEventListener('pagehide', saveTugsState);
 }
 
-window.addEventListener('afterprint', () => {
-  document.body.classList.remove('print-fit', 'print-desktop-lock', 'print-mobile');
-  disableMobilePrintFooterSuppression();
-  if (printRestoreDensity === 'comfortable') {
-    setDensity('comfortable');
-  } else if (printRestoreDensity === 'none') {
-    document.body.classList.remove('density-comfortable', 'density-dense');
-  }
-  printRestoreDensity = null;
-  restorePrintTitleIfNeeded();
-  clearPrintHidden();
-});
-
-window.addEventListener('beforeprint', () => {
-  setPrintTitleFromVessel();
-  const logoLeftNote = document.getElementById('logoLeftNote');
-  if (logoLeftNote) autoResizeTextarea(logoLeftNote);
-  if (document.body.classList.contains('page-index') && shouldSuppressMobilePrintFooters()) {
-    enableMobilePrintFooterSuppression();
-  } else {
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('afterprint', () => {
+    document.body.classList.remove('print-fit', 'print-desktop-lock', 'print-mobile');
     disableMobilePrintFooterSuppression();
-  }
-  if (document.body.classList.contains('page-index') && isLikelyMobileViewport()) {
-    document.body.classList.add('print-mobile');
-  } else {
-    document.body.classList.remove('print-mobile');
-  }
-  applyPrintDensity();
-  updatePrintHidden();
-});
+    if (printRestoreDensity === 'comfortable') {
+      setDensity('comfortable');
+    } else if (printRestoreDensity === 'none') {
+      document.body.classList.remove('density-comfortable', 'density-dense');
+    }
+    printRestoreDensity = null;
+    restorePrintTitleIfNeeded();
+    clearPrintHidden();
+  });
 
-window.addEventListener('pageshow', () => {
-  clearTransientIconAnimationState(document);
-});
+  window.addEventListener('beforeprint', () => {
+    setPrintTitleFromVessel();
+    const logoLeftNote = document.getElementById('logoLeftNote');
+    if (logoLeftNote) autoResizeTextarea(logoLeftNote);
+    if (document.body.classList.contains('page-index') && shouldSuppressMobilePrintFooters()) {
+      enableMobilePrintFooterSuppression();
+    } else {
+      disableMobilePrintFooterSuppression();
+    }
+    if (document.body.classList.contains('page-index') && isLikelyMobileViewport()) {
+      document.body.classList.add('print-mobile');
+    } else {
+      document.body.classList.remove('print-mobile');
+    }
+    applyPrintDensity();
+    updatePrintHidden();
+  });
 
-window.addEventListener('DOMContentLoaded', () => {
-  initIconClickAnimationCompletion();
-  clearTransientIconAnimationState(document);
-  initIndex();
-  initLightDues();
-  initPortDues();
-  initBunkering();
-  initBerthageAnchorage();
-  initPilotBoat();
-  initPilotage();
-  initMooring();
-  initTugs();
-});
+  window.addEventListener('pageshow', () => {
+    clearTransientIconAnimationState(document);
+  });
+
+  window.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('input', (event) => {
+      const target = event.target;
+      if (!target || !(target instanceof HTMLElement)) return;
+      if (target.matches('input, textarea, select')) {
+        target.dataset.userEdited = '1';
+      }
+    }, true);
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!target || !(target instanceof HTMLElement)) return;
+      if (target.matches('input, textarea, select')) {
+        target.dataset.userEdited = '1';
+      }
+    }, true);
+    initIconClickAnimationCompletion();
+    clearTransientIconAnimationState(document);
+    initIndex();
+    initLightDues();
+    initPortDues();
+    initBunkering();
+    initBerthageAnchorage();
+    initPilotBoat();
+    initPilotage();
+    initMooring();
+    initTugs();
+  });
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    __test__: {
+      STORAGE_KEYS,
+      getGlobalImoTransportState,
+      resolveLightDuesTypeForImo,
+      resolvePortDuesCargoTypeForImo,
+      setGlobalImoTransportState,
+      shouldApplyGlobalImoStateOnInit
+    }
+  };
+}

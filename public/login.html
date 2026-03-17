@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In PDA</title>
+  <link rel="icon" type="image/svg+xml" href="images/favicon-pda.svg" />
+  <link rel="apple-touch-icon" href="images/favicon-pda.svg" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body class="page-login">
+  <div class="login-shell">
+    <main class="login-card" aria-labelledby="loginTitle">
+      <div class="login-card-header">
+        <h1 id="loginTitle">PDA</h1>
+      </div>
+
+      <form id="loginForm" class="login-form" novalidate>
+        <label class="login-field">
+          <span>Username</span>
+          <input id="loginUsername" name="username" type="text" autocomplete="username" required />
+        </label>
+
+        <label class="login-field">
+          <span>Password</span>
+          <input id="loginPassword" name="password" type="password" autocomplete="current-password" required />
+        </label>
+
+        <div id="loginError" class="login-error" role="alert" hidden></div>
+
+        <button type="submit" class="login-submit-btn">
+          <span class="login-submit-icon" aria-hidden="true"></span>
+          <span>Sign In</span>
+        </button>
+      </form>
+    </main>
+  </div>
+
+  <script src="js/login.js" defer></script>
+</body>
+</html>

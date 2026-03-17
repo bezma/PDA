@@ -2,15 +2,26 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('node:path');
+const {
+  SESSION_COOKIE_NAME,
+  SESSION_TTL_MS,
+  createSessionToken,
+  normalizeUsername,
+  parseCookies,
+  verifyPassword,
+  verifySessionToken
+} = require('./lib/auth');
 const { createPool } = require('./lib/db-config');
 const { applyMigrations } = require('./lib/migrations');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 
 const ROOT_DIR = path.resolve(__dirname);
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
+const LOGIN_PAGE = path.join(PUBLIC_DIR, 'login.html');
 
 function toIsoOrEmpty(value) {
   const raw = String(value || '').trim();
@@ -220,6 +231,121 @@ async function deletePositionById(id) {
   return queryResult.rowCount > 0;
 }
 
+async function getUserByUsername(username, db = pool) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) return null;
+
+  const queryResult = await db.query(
+    `
+      SELECT username, display_name, password_hash, is_active
+      FROM pda_users
+      WHERE username = $1
+      LIMIT 1
+    `,
+    [normalizedUsername]
+  );
+
+  const row = queryResult.rows[0];
+  if (!row) return null;
+  return {
+    username: String(row.username || '').trim(),
+    displayName: String(row.display_name || '').trim(),
+    passwordHash: String(row.password_hash || '').trim(),
+    isActive: Boolean(row.is_active)
+  };
+}
+
+function getRequestSessionToken(req) {
+  const cookies = parseCookies(req.headers && req.headers.cookie);
+  return cookies[SESSION_COOKIE_NAME] || '';
+}
+
+async function getAuthenticatedUser(req) {
+  const token = getRequestSessionToken(req);
+  const session = verifySessionToken(token);
+  if (!session) return null;
+
+  const user = await getUserByUsername(session.username);
+  if (!user || !user.isActive) return null;
+  return {
+    username: user.username,
+    displayName: user.displayName
+  };
+}
+
+function setSessionCookie(req, res, username) {
+  const secure =
+    Boolean(req.secure) ||
+    String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https';
+  res.cookie(SESSION_COOKIE_NAME, createSessionToken(username), {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure,
+    path: '/',
+    maxAge: SESSION_TTL_MS
+  });
+}
+
+function clearSessionCookie(req, res) {
+  const secure =
+    Boolean(req.secure) ||
+    String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https';
+  res.clearCookie(SESSION_COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure,
+    path: '/'
+  });
+}
+
+function getSafeNextPath(value) {
+  const nextPath = String(value || '').trim();
+  if (!nextPath.startsWith('/')) return '/index.html';
+  if (nextPath.startsWith('//')) return '/index.html';
+  if (nextPath.includes('login.html')) return '/index.html';
+  return nextPath || '/index.html';
+}
+
+async function requireApiAuth(req, res, next) {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+    req.authUser = user;
+    next();
+  } catch (error) {
+    res.status(500).json({ error: 'Authentication failed.' });
+  }
+}
+
+async function protectHtmlRequest(req, res, next) {
+  const pathname = String(req.path || '').toLowerCase();
+  if (!pathname.endsWith('.html')) {
+    next();
+    return;
+  }
+  if (pathname === '/login.html') {
+    next();
+    return;
+  }
+
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (user) {
+      req.authUser = user;
+      next();
+      return;
+    }
+  } catch (error) {
+    // fall through to redirect
+  }
+
+  const nextPath = getSafeNextPath(req.originalUrl || req.path);
+  res.redirect(`/login.html?next=${encodeURIComponent(nextPath)}`);
+}
+
 app.use(express.json({ limit: '3mb' }));
 
 app.get('/api/health', async (req, res) => {
@@ -231,7 +357,69 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-app.get('/api/positions', async (req, res) => {
+app.get('/api/auth/session', requireApiAuth, async (req, res) => {
+  res.json({ authenticated: true, user: req.authUser });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const username = normalizeUsername(req.body && req.body.username);
+  const password = String(req.body && req.body.password ? req.body.password : '');
+  const nextPath = getSafeNextPath(req.body && req.body.next);
+
+  if (!username || !password) {
+    res.status(400).json({ error: 'Username and password are required.' });
+    return;
+  }
+
+  try {
+    const user = await getUserByUsername(username);
+    if (!user || !user.isActive || !verifyPassword(password, user.passwordHash)) {
+      res.status(401).json({ error: 'Invalid username or password.' });
+      return;
+    }
+
+    setSessionCookie(req, res, user.username);
+    res.json({
+      ok: true,
+      redirectTo: nextPath,
+      user: {
+        username: user.username,
+        displayName: user.displayName
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Login failed.' });
+  }
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+  clearSessionCookie(req, res);
+  res.status(204).send();
+});
+
+app.get('/', async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    res.redirect(user ? '/index.html' : '/login.html');
+  } catch (error) {
+    res.redirect('/login.html');
+  }
+});
+
+app.get('/login.html', async (req, res) => {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (user) {
+      res.redirect('/index.html');
+      return;
+    }
+  } catch (error) {
+    // continue to login page
+  }
+  res.sendFile(LOGIN_PAGE);
+});
+
+app.get('/api/positions', requireApiAuth, async (req, res) => {
   try {
     const positions = await getPositions();
     res.json({ positions });
@@ -240,7 +428,7 @@ app.get('/api/positions', async (req, res) => {
   }
 });
 
-app.get('/api/positions/:id', async (req, res) => {
+app.get('/api/positions/:id', requireApiAuth, async (req, res) => {
   const id = String(req.params.id || '').trim();
   if (!id) {
     res.status(400).json({ error: 'Position id is required.' });
@@ -259,7 +447,7 @@ app.get('/api/positions/:id', async (req, res) => {
   }
 });
 
-app.post('/api/positions', async (req, res) => {
+app.post('/api/positions', requireApiAuth, async (req, res) => {
   const incoming = req.body && typeof req.body === 'object' ? req.body : null;
   if (!incoming) {
     res.status(400).json({ error: 'Invalid position payload.' });
@@ -284,7 +472,7 @@ app.post('/api/positions', async (req, res) => {
   }
 });
 
-app.delete('/api/positions/:id', async (req, res) => {
+app.delete('/api/positions/:id', requireApiAuth, async (req, res) => {
   const id = String(req.params.id || '').trim();
   if (!id) {
     res.status(400).json({ error: 'Position id is required.' });
@@ -303,7 +491,8 @@ app.delete('/api/positions/:id', async (req, res) => {
   }
 });
 
-app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
+app.use(protectHtmlRequest);
+app.use(express.static(PUBLIC_DIR, { extensions: ['html'], index: false }));
 
 async function startServer() {
   try {
@@ -313,6 +502,11 @@ async function startServer() {
     // eslint-disable-next-line no-console
     console.error('Failed to initialize PostgreSQL storage.', error);
     process.exit(1);
+  }
+
+  if (!String(process.env.SESSION_SECRET || '').trim()) {
+    // eslint-disable-next-line no-console
+    console.warn('SESSION_SECRET is not set. Using a development fallback secret.');
   }
 
   app.listen(PORT, HOST, () => {
