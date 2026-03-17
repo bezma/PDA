@@ -5,9 +5,11 @@
   "description": "Capris PDA shared database server",
   "main": "server.js",
   "scripts": {
-    "check": "node --check server.js && node --check public/js/script.js && node --check public/js/pda-database.js",
+    "check": "node --check server.js && node --check public/js/script.js && node --check public/js/pda-database.js && node --check public/js/login.js && node --check scripts/create-user.js && npm test",
     "migrate": "node -r dotenv/config scripts/migrate.js up",
     "migrate:status": "node scripts/migrate.js status",
+    "test": "node --test tests/*.test.js",
+    "user:create": "node -r dotenv/config scripts/create-user.js",
     "start": "npm run migrate && node -r dotenv/config server.js",
     "dev": "node --watch server.js"
   },
